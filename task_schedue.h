@@ -20,7 +20,7 @@
 
 #include "task_list.h"
 
-#define DEFAULT_TASK_QUEUE_FILE		"~/.fmdl_tasks"
+#define DEFAULT_TASK_QUEUE_FILE		".fmdl_tasks"
 typedef enum {
 	TO_HIGIH = 0x10,
 	TO_SINGLE = 0x20,

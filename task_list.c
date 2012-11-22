@@ -84,7 +84,7 @@ bool copy_insert_task_by_priority(list_head_t *head, const task_t *task)
 	task_hd = head->task_head; 
 	pre_task = head->task_head; 
 	while ((task_hd = task_hd->next_task) && 
-			(GET_TASK_PRIORITY(GET_TASK_BY_PTR(task_hd)) <= GET_TASK_PRIORITY(*task)))
+			GET_TASK_PRIORITY(GET_TASK_BY_PTR(task_hd)) <= GET_TASK_PRIORITY(*task))
 		pre_task = task_hd; 
 	/* 新任务处于pre_task之后task_hd之前 */
 	INIT_NEW_TASK_TYPE(task); 
@@ -134,7 +134,7 @@ bool find_all_tasks_of_priority(const list_head_t *head, const uint8_t priority,
 	/* 不存在此优先级的任务 */
 	if (hd == NULL) return false; 
 	hd = *tail_task; 
-	while (hd && (GET_TASK_PRIORITY(GET_TASK_BY_PTR(hd))) == priority) 
+	while (hd && GET_TASK_PRIORITY(GET_TASK_BY_PTR(hd)) == priority) 
 		hd = hd->next_task; 
 	*tail_task = hd; 
 	return true; 

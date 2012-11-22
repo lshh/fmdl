@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
@@ -36,6 +38,7 @@
 #define IS_SINGLE_PRIORITY_BY_PTR(task) ((task)->priority & 0x20)
 #define IS_RECU_PRIORITY_BY_PTR(task) 	((task)->priority & 0x40)
 #define IS_HIBER_PRIORITY_BY_PTR(task)	((task)->priority & 0x80)
+//设置外部优先级
 #define SET_TO_HIGH_LEVEL(task)		((task)->priority |=  0x10)
 #define SET_TO_SIGNLE_LEVEL(task)	((task)->priority |=  0x20)
 #define SET_TO_RECU_LEVEL(task)		((task)->priority |= 0x40)
@@ -48,7 +51,10 @@
 #define DEFAULT_RECU	"recursion"
 #define DEFAULT_HIBER	"hibernation"
 #define MAX_BUFF_LEN	1024
-#define CHOMP(str) 		(str)[strlen((str)) - 1] = '\0'
+#define CHOMP(str)		do{\
+	int len = strlen(str); \
+	if ((str)[len - 1] == '\n') (str)[len - 1] = '\0'; \
+} while (0)
 /* 记录所有任务的全局结构 */
 static struct task_queue_head task_queue; 
 
@@ -60,6 +66,7 @@ static bool move_to_highest(task_t *mv_task);
 static bool read_task_queue_from_file(); 
 static bool write_to_file(const int fd, const task_type_t *hd, const list_type_t flag); 
 static task_type_t *alloc_task_type(char *s, size_t len); 
+static const char *default_task_file(); 
 void init_task_queue()
 {
 	memset(&task_queue, 0, sizeof(task_queue)); 
@@ -238,10 +245,10 @@ task_type_t*get_task_to_dl()
 }
 bool save_tasks_queue_to_file()
 {
-	char *local_file = getenv("FMDL_TASK_FILE"); 
+	const char *local_file = getenv("FMDL_TASK_FILE"); 
 	task_type_t *hd; 
-	if (local_file == NULL) local_file = DEFAULT_TASK_QUEUE_FILE; 
-	int fd = open(local_file, O_CREAT | O_WRONLY); 
+	if (local_file == NULL) local_file = default_task_file(); 
+	int fd = open(local_file, O_CREAT | O_WRONLY, S_IRUSR|S_IWUSR); 
 	if (fd < 0) return false; 
 	if (GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD)) {
 		/* 最高优先级 */
@@ -302,15 +309,18 @@ bool write_to_file(const int fd, const task_type_t *hd, const list_type_t flag)
 	const task_type_t *task = hd; 
 	size_t len; 
 	do {
+		int bit = 1; 
 		const char *url = GET_TASK_URL(GET_TASK_BY_PTR(task)); 
 		const uint8_t priority = GET_TASK_PRIORITY(GET_TASK_BY_PTR(task)); 
+		int tmp = priority; 
 		//\t%d:url\n
+		while ((tmp = tmp/10)) bit++; 
 		len = 1		//\t
-		   	+ 3		//优先级为8位则可表示的最大数为256，则3字节即可
+			+ bit	//优先级占用的字节数
 		   	+ 1 	//:
 			+ 1 	//\n
-			+ strlen(url); //usl
-		if ((nxt + len) > (nxt + buflen)) {
+			+ strlen(url); //url
+		if ((nxt + len) > (buf + buflen)) {
 			buf = realloc(buf, buflen << 1); 
 			nxt = buf + cur_len; 
 		}
@@ -330,6 +340,7 @@ AGAIN:
 				cnt += wnt; 
 				continue; 
 			}
+			break; 
 		}
 		if (wnt < 0)
 			if(errno == EINTR) /* 任务被信号中断 */
@@ -342,41 +353,53 @@ AGAIN:
 }
 bool read_task_queue_from_file()
 {
-	char *local_file = getenv("FMDL_TASK_FILE"); 
-	if (local_file == NULL) local_file = DEFAULT_TASK_QUEUE_FILE; 
+	const char *local_file = getenv("FMDL_TASK_FILE"); 
+	if (local_file == NULL) local_file = default_task_file(); 
 
-	FILE *fp = fopen(DEFAULT_TASK_QUEUE_FILE, "r"); 
+	FILE *fp = fopen(local_file, "r"); 
 	list_type_t flag = TO_NOTHING; 
 	task_type_t **task_ptr; 
 	if (fp == NULL) return false; 
 	char buf[MAX_BUFF_LEN] = {0}; 
 	while (fgets(buf, MAX_BUFF_LEN - 1, fp)) {
 		CHOMP(buf); 
-		if (strcmp(buf, DEFAULT_HIGH) == 0) {
-			flag = TO_HIGIH; 
-			task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD)); 
-			continue; 
+		if (buf[0] == '[') {
+			char *ptr = buf + 1; 
+			ptr[strlen(ptr) - 1] = '\0'; 
+			if (strcmp(ptr, DEFAULT_HIGH) == 0) {
+				flag = TO_HIGIH; 
+				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD)); 
+				memset(buf, 0, strlen(buf)); 
+				continue; 
+			}
+			if (strcmp(ptr, DEFAULT_SINGLE) == 0) {
+				flag = TO_SINGLE; 
+				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_SINGLE_LEVEL_HD)); 
+				memset(buf, 0, strlen(buf)); 
+				continue; 
+			}
+			if (strcmp(ptr, DEFAULT_RECU) == 0) {
+				flag = TO_RECU; 
+				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_RECURSION_LEVEL_HD)); 
+				memset(buf, 0, strlen(buf)); 
+				continue; 
+			}
+			if (strcmp(ptr, DEFAULT_HIBER) == 0) {
+				flag = TO_HIBER; 
+				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIBERN_LIST_HD)); 
+				memset(buf, 0, strlen(buf)); 
+				continue; 
+			}
 		}
-		if (strcmp(buf, DEFAULT_SINGLE) == 0) {
-			flag = TO_SINGLE; 
-			task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_SINGLE_LEVEL_HD)); 
-			continue; 
-		}
-		if (strcmp(buf, DEFAULT_RECU) == 0) {
-			flag = TO_RECU; 
-			task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_RECURSION_LEVEL_HD)); 
-			continue; 
-		}
-		if (strcmp(buf, DEFAULT_HIBER) == 0) {
-			flag = TO_HIBER; 
-			task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIBERN_LIST_HD)); 
-			continue; 
-		}
+
+		if (buf == NULL) goto EXIT; 
+
 		if (flag != TO_NOTHING){
 			*task_ptr = alloc_task_type(buf, strlen(buf)); 
 			task_ptr = &((*task_ptr)->next_task); 
 		}
 	}
+EXIT:
 	fclose(fp); 
 	return true; 
 }
@@ -421,16 +444,24 @@ uint16_t reset_all_task_id()
 	} while ((task = task->next_task));\
 }
 	/* 此函数保证只会设置一次task_id */
-	static bool is_first = false; 
+	static bool seted = false; 
 
 	uint16_t task_id = 1; 
-	if (is_first == false){
+	if (seted == false){
 		SET_TASK_ID_OF_HEAD(GET_HIGHEST_LEVEL_HD); 
 		SET_TASK_ID_OF_HEAD(GET_SINGLE_LEVEL_HD); 
 		SET_TASK_ID_OF_HEAD(GET_RECURSION_LEVEL_HD); 
 		SET_TASK_ID_OF_HEAD(GET_HIBERN_LIST_HD); 
-		is_first = true; 
+		seted = true; 
 	}
 	return task_id; 
 #undef SET_TASK_ID_OF_HEAD
+}
+const char *default_task_file()
+{
+	static char conf_file[128] = {0}; 
+	char *home = getenv("HOME"); 
+	if (home == NULL) return home; 
+	snprintf(conf_file, 128, "%s/%s", home, DEFAULT_TASK_QUEUE_FILE); 
+	return conf_file; 
 }
