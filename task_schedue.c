@@ -89,7 +89,7 @@ bool insert_new_task(task_t *new_task)
 		hd = GET_RECURSION_LEVEL_HD; 
 		goto EXIT; 
 	}
-	if (IS_HIBER_PRIORITY_BY_PTR(new_task))
+	if (IS_HIBER_PRIORITY_BY_PTR(new_task)) 
 		hd = GET_HIBERN_LIST_HD; 
 EXIT:
 	return copy_insert_task_by_priority(hd, new_task); 
@@ -196,7 +196,7 @@ bool move_task_in_queue_by_id(uint16_t task_id, list_type_t flag)
 		case TO_SINGLE:
 			if(IS_SINGLE_PRIORITY_BY_PTR(&(GET_TASK_BY_PTR(to_mv_task))))
 				return true; 
-			return move_to_hibernation(&(GET_TASK_BY_PTR(to_mv_task))); 
+			return move_back_to_single(&(GET_TASK_BY_PTR(to_mv_task))); 
 		case TO_RECU:
 			if (IS_RECU_PRIORITY_BY_PTR(&(GET_TASK_BY_PTR(to_mv_task))))
 				return true;
@@ -204,7 +204,8 @@ bool move_task_in_queue_by_id(uint16_t task_id, list_type_t flag)
 		case TO_HIBER:
 			if (IS_HIGH_PRIORITY_BY_PTR(&(GET_TASK_BY_PTR(to_mv_task))))
 				return true;
-			return move_back_to_single(&(GET_TASK_BY_PTR(to_mv_task))); 
+			return move_to_hibernation(&(GET_TASK_BY_PTR(to_mv_task))); 
+		case TO_NOTHING:
 		default:
 			return false; 
 	}
@@ -366,29 +367,25 @@ bool read_task_queue_from_file()
 		CHOMP(buf); 
 		if (buf[0] == '[') {
 			char *ptr = buf + 1; 
-			ptr[strlen(ptr) - 1] = '\0'; 
+			ptr[strlen(ptr) - 1] = '\0';  //将']'删除
 			if (strcmp(ptr, DEFAULT_HIGH) == 0) {
 				flag = TO_HIGIH; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD)); 
-				memset(buf, 0, strlen(buf)); 
 				continue; 
 			}
 			if (strcmp(ptr, DEFAULT_SINGLE) == 0) {
 				flag = TO_SINGLE; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_SINGLE_LEVEL_HD)); 
-				memset(buf, 0, strlen(buf)); 
 				continue; 
 			}
 			if (strcmp(ptr, DEFAULT_RECU) == 0) {
 				flag = TO_RECU; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_RECURSION_LEVEL_HD)); 
-				memset(buf, 0, strlen(buf)); 
 				continue; 
 			}
 			if (strcmp(ptr, DEFAULT_HIBER) == 0) {
 				flag = TO_HIBER; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIBERN_LIST_HD)); 
-				memset(buf, 0, strlen(buf)); 
 				continue; 
 			}
 		}
@@ -443,7 +440,6 @@ uint16_t reset_all_task_id()
 {
 #define SET_TASK_ID_OF_HEAD(hd) {\
 	task_type_t *task = GET_TASK_HEAD_BY_PTR((hd)); \
-	if (task == NULL) return; \
 	do {\
 		SET_TASK_ID(GET_TASK_BY_PTR(task), task_id);\
 		task_id++; \
@@ -453,10 +449,14 @@ uint16_t reset_all_task_id()
 	static bool seted = false; 
 	uint16_t task_id = 1; 
 	if (seted == false){
-		SET_TASK_ID_OF_HEAD(GET_HIGHEST_LEVEL_HD); 
-		SET_TASK_ID_OF_HEAD(GET_SINGLE_LEVEL_HD); 
-		SET_TASK_ID_OF_HEAD(GET_RECURSION_LEVEL_HD); 
-		SET_TASK_ID_OF_HEAD(GET_HIBERN_LIST_HD); 
+		if (GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD) != NULL)
+			SET_TASK_ID_OF_HEAD(GET_HIGHEST_LEVEL_HD); 
+		if (GET_TASK_HEAD_BY_PTR(GET_SINGLE_LEVEL_HD) != NULL)
+			SET_TASK_ID_OF_HEAD(GET_SINGLE_LEVEL_HD); 
+		if (GET_TASK_HEAD_BY_PTR(GET_RECURSION_LEVEL_HD) != NULL)
+			SET_TASK_ID_OF_HEAD(GET_RECURSION_LEVEL_HD); 
+		if (GET_TASK_HEAD_BY_PTR(GET_HIBERN_LIST_HD) != NULL)
+			SET_TASK_ID_OF_HEAD(GET_HIBERN_LIST_HD); 
 		seted = true; 
 	}
 	return task_id; 
@@ -469,4 +469,12 @@ const char *default_task_file()
 	if (home == NULL) return home; 
 	snprintf(conf_file, 128, "%s/%s", home, DEFAULT_TASK_QUEUE_FILE); 
 	return conf_file; 
+}
+void destroy_all_tasks_in_queue()
+{
+	destroy_task_list(GET_HIGHEST_LEVEL_HD); 
+	destroy_task_list(GET_SINGLE_LEVEL_HD); 
+	destroy_task_list(GET_RECURSION_LEVEL_HD); 
+	destroy_task_list(GET_HIBERN_LIST_HD); 
+	memset(&task_queue, 0, sizeof(task_queue)); 
 }

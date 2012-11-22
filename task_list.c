@@ -40,7 +40,8 @@ task_type_t *find_task_by_id(const list_head_t *head, const uint16_t task_id, ta
 		}
 		pre = hd; 
 	}
-	*previous_task = NULL;
+	if (previous_task != NULL)
+		*previous_task = NULL;
 	return NULL; 
 }
 list_head_t *destroy_task_list(list_head_t *head)
