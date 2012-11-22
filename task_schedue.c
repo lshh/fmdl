@@ -443,13 +443,14 @@ uint16_t reset_all_task_id()
 {
 #define SET_TASK_ID_OF_HEAD(hd) {\
 	task_type_t *task = GET_TASK_HEAD_BY_PTR((hd)); \
+	if (task == NULL) return; \
 	do {\
-		GET_TASK_ID(GET_TASK_BY_PTR(task)) = task_id++; \
+		SET_TASK_ID(GET_TASK_BY_PTR(task), task_id);\
+		task_id++; \
 	} while ((task = task->next_task));\
 }
 	/* 此函数保证只会设置一次task_id */
 	static bool seted = false; 
-
 	uint16_t task_id = 1; 
 	if (seted == false){
 		SET_TASK_ID_OF_HEAD(GET_HIGHEST_LEVEL_HD); 
