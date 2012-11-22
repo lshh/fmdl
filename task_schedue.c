@@ -67,10 +67,11 @@ static bool read_task_queue_from_file();
 static bool write_to_file(const int fd, const task_type_t *hd, const list_type_t flag); 
 static task_type_t *alloc_task_type(char *s, size_t len); 
 static const char *default_task_file(); 
-void init_task_queue()
+uint16_t init_task_queue()
 {
 	memset(&task_queue, 0, sizeof(task_queue)); 
 	read_task_queue_from_file(); 
+	return reset_all_task_id(); 
 }
 bool insert_new_task(task_t *new_task)
 {
@@ -248,7 +249,7 @@ bool save_tasks_queue_to_file()
 	const char *local_file = getenv("FMDL_TASK_FILE"); 
 	task_type_t *hd; 
 	if (local_file == NULL) local_file = default_task_file(); 
-	int fd = open(local_file, O_CREAT | O_WRONLY, S_IRUSR|S_IWUSR); 
+	int fd = open(local_file, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR|S_IWUSR); 
 	if (fd < 0) return false; 
 	if (GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD)) {
 		/* 最高优先级 */
@@ -407,14 +408,17 @@ task_type_t *alloc_task_type(char *s, size_t len)
 {
 	assert(s != NULL); 
 	assert(len != 0); 
-	char *ptr; 
+	char *ptr = s; 
+	char priority = 0; 
 	task_type_t *task = calloc(1, sizeof(task_type_t)); 
 	if (task == NULL) return task; 
 	while (isspace(*ptr)) ptr++; 	/* 跳过\t */
 	/* 获取优先级 */
-	while (isdigit(*ptr))
-	   	GET_TASK_PRIORITY(GET_TASK_BY_PTR(task)) +=
-		   	10*(GET_TASK_PRIORITY(GET_TASK_BY_PTR(task))) + *ptr++ - '0'; 
+	while (isdigit(*ptr)) {
+		priority = 10*priority + *ptr - '0';
+	   	ptr++;
+   	} 
+	SET_TASK_PRIORITY(GET_TASK_BY_PTR(task), priority); 
 	ptr++; /* 跳过':' */
 	/* 计算为需要为url分配的空间 */
 	len = len - (ptr - s); 

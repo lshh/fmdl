@@ -40,7 +40,7 @@ struct task_queue_head
 /* 放入一个新任务，此函数会根据任务的优先级将任务添加到合适的下载队列
  * NEW_TASK:	待添加新任务
  * */
-void init_task_queue(); 
+uint16_t init_task_queue(); 
 bool insert_new_task(task_t *new_task); 
 bool move_task_in_queue_by_id(uint16_t task_id, list_type_t flag); 
 /* 返回一个TASK_T结构似乎更加合理但是会造成内存泄露或者更多的数据复制 */
