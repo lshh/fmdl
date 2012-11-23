@@ -71,13 +71,12 @@ bool copy_insert_task_by_priority(list_head_t *head, const task_t *task)
 	task_type_t *task_hd = NULL; 
 	task_type_t *pre_task = NULL; 
 	task_type_t *new; 
+	INIT_NEW_TASK_TYPE(task); 
 	if (head->task_head == NULL) {
-		INIT_NEW_TASK_TYPE(task); 
 		head->task_head = new; 
 		goto EXIT; 
 	}
 	if (GET_TASK_PRIORITY(GET_TASK_BY_PTR(head->task_head)) > GET_TASK_PRIORITY(*task)) {
-		INIT_NEW_TASK_TYPE(task); 
 		new->next_task = head->task_head; 
 		head->task_head = new; 
 		goto EXIT; 
@@ -88,7 +87,6 @@ bool copy_insert_task_by_priority(list_head_t *head, const task_t *task)
 			GET_TASK_PRIORITY(GET_TASK_BY_PTR(task_hd)) <= GET_TASK_PRIORITY(*task))
 		pre_task = task_hd; 
 	/* 新任务处于pre_task之后task_hd之前 */
-	INIT_NEW_TASK_TYPE(task); 
 	pre_task->next_task = new; 
 	new->next_task = task_hd; 
 EXIT:
@@ -127,6 +125,9 @@ EXIT:
 bool find_all_tasks_of_priority(const list_head_t *head, const uint8_t priority, 
 		task_type_t **head_task, task_type_t **tail_task)
 {
+	assert(head != NULL); 
+	assert(head_task != NULL); 
+	assert(tail_task != NULL); 
 	task_type_t *hd = head->task_head; 
 	while (hd && (GET_TASK_PRIORITY(GET_TASK_BY_PTR(hd)) != priority))
 	   	hd = hd->next_task; 

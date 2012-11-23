@@ -347,8 +347,10 @@ AGAIN:
 		if (wnt < 0)
 			if(errno == EINTR) /* 任务被信号中断 */
 				goto AGAIN; 
-			else
+			else{
+				free(buf); 
 			   	return false; 
+			}
 		free(buf); 
 	}
 	return true; 
@@ -371,26 +373,30 @@ bool read_task_queue_from_file()
 			if (strcmp(ptr, DEFAULT_HIGH) == 0) {
 				flag = TO_HIGIH; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIGHEST_LEVEL_HD)); 
+				buf[0] = '\0'; 
 				continue; 
 			}
 			if (strcmp(ptr, DEFAULT_SINGLE) == 0) {
 				flag = TO_SINGLE; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_SINGLE_LEVEL_HD)); 
+				buf[0] = '\0'; 
 				continue; 
 			}
 			if (strcmp(ptr, DEFAULT_RECU) == 0) {
 				flag = TO_RECU; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_RECURSION_LEVEL_HD)); 
+				buf[0] = '\0'; 
 				continue; 
 			}
 			if (strcmp(ptr, DEFAULT_HIBER) == 0) {
 				flag = TO_HIBER; 
 				task_ptr = &(GET_TASK_HEAD_BY_PTR(GET_HIBERN_LIST_HD)); 
+				buf[0] = '\0'; 
 				continue; 
 			}
 		}
 
-		if (buf == NULL) goto EXIT; 
+		if (buf[0] == '\0') goto EXIT; 
 
 		if (flag != TO_NOTHING){
 			*task_ptr = alloc_task_type(buf, strlen(buf)); 
@@ -467,7 +473,8 @@ const char *default_task_file()
 	static char conf_file[128] = {0}; 
 	char *home = getenv("HOME"); 
 	if (home == NULL) return home; 
-	snprintf(conf_file, 128, "%s/%s", home, DEFAULT_TASK_QUEUE_FILE); 
+	snprintf(conf_file, 127, "%s/%s", home, DEFAULT_TASK_QUEUE_FILE); 
+	conf_file[strlen(conf_file)] = 0; 
 	return conf_file; 
 }
 void destroy_all_tasks_in_queue()
