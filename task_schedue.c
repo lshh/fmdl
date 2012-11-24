@@ -477,6 +477,19 @@ const char *default_task_file()
 	conf_file[strlen(conf_file)] = 0; 
 	return conf_file; 
 }
+uint32_t total_tasks()
+{
+	size_t num = 0; 
+	list_head_t *hd = GET_HIGHEST_LEVEL_HD; 
+	num += hd->task_number; 
+	hd = GET_SINGLE_LEVEL_HD; 
+	num += hd->task_number; 
+	hd = GET_RECURSION_LEVEL_HD; 
+	num += hd->task_number; 
+	hd = GET_HIBERN_LIST_HD; 
+	num += hd->task_number; 
+	return num; 
+}
 void destroy_all_tasks_in_queue()
 {
 	destroy_task_list(GET_HIGHEST_LEVEL_HD); 

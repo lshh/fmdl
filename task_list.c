@@ -128,6 +128,7 @@ bool find_all_tasks_of_priority(const list_head_t *head, const uint8_t priority,
 	assert(head != NULL); 
 	assert(head_task != NULL); 
 	assert(tail_task != NULL); 
+
 	task_type_t *hd = head->task_head; 
 	while (hd && (GET_TASK_PRIORITY(GET_TASK_BY_PTR(hd)) != priority))
 	   	hd = hd->next_task; 
@@ -141,3 +142,4 @@ bool find_all_tasks_of_priority(const list_head_t *head, const uint8_t priority,
 	*tail_task = hd; 
 	return true; 
 }
+#undef  SET_TASKS_LIST_HEAD_BY_PTR

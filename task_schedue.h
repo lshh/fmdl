@@ -19,6 +19,7 @@
 #define TASK_SCHEDUE_YDKZFUMY
 
 #include "task_list.h"
+#include <unistd.h>
 
 #define DEFAULT_TASK_QUEUE_FILE		".fmdl_tasks"
 typedef enum {
@@ -54,6 +55,10 @@ bool delete_task_not_start_dl(uint16_t task_id);
 /* 重置所有任务的task_id, 一般在从文件中读入任务后应调用此函数
  * 返回值：下一个可使用的task_id */
 uint16_t reset_all_task_id(); 
+/*
+ * 所有尚未开始下载的任务总和
+ */
+uint32_t total_tasks(); 
 /*
  * 这个函数似乎并无多大作用，在整个程序存活期内任务队列是一直存在的
  * 所以似乎不需要此函数来释放整个任务队列！XXX此函数非常危险，只有当你
