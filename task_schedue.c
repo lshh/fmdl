@@ -46,6 +46,11 @@
 #define CLR_HIBER_LEVEL_BIT(task)	((task)->priority &= 0x7f)
 #define CLR_HIGH_LEVEL_BIT(task) 	((task)->priority &= 0xef)
 
+#define FREE_TASK_TYPE(task_type) do {\
+	if (GET_TASK_URL(GET_TASK_BY_PTR((task_type))))\
+		free (GET_TASK_URL(GET_TASK_BY_PTR((task_type)))); \
+	free ((task_type)); \
+} while (0)
 #define DEFAULT_HIGH	"highest"
 #define DEFAULT_SINGLE	"single"
 #define DEFAULT_RECU	"recursion"
@@ -114,7 +119,7 @@ EXIT:
 	if (task_to_mv == NULL) return false; 
 	SET_TO_HIBER_LEVEL(&(GET_TASK_BY_PTR(task_to_mv))); 
 	bool rnt =  copy_insert_task_by_priority(GET_HIBERN_LIST_HD, &(GET_TASK_BY_PTR(task_to_mv))); 
-	free(task_to_mv); 
+	FREE_TASK_TYPE(task_to_mv); 
 	return rnt; 
 }
 bool move_to_highest(task_t *mv_task)
@@ -137,7 +142,7 @@ EXIT:
 	if (task_to_mv == NULL) return false; 
 	SET_TO_HIGH_LEVEL(&(GET_TASK_BY_PTR(task_to_mv))); 
 	bool rnt =  copy_insert_task_by_priority(GET_HIBERN_LIST_HD, &(GET_TASK_BY_PTR(task_to_mv))); 
-	free(task_to_mv); 
+	FREE_TASK_TYPE(task_to_mv); 
 	return rnt; 
 }
 bool move_back_to_single(task_t *mv_task)
@@ -159,7 +164,7 @@ bool move_back_to_single(task_t *mv_task)
 EXIT:
 	SET_TO_SIGNLE_LEVEL(&(GET_TASK_BY_PTR(task_to_mv))); 
 	bool rnt = copy_insert_task_by_priority(GET_SINGLE_LEVEL_HD, &(GET_TASK_BY_PTR(task_to_mv))); 
-	free(task_to_mv); 
+	FREE_TASK_TYPE(task_to_mv); 
 	return rnt; 
 }
 bool move_back_to_recursion(task_t *mv_task)
@@ -181,7 +186,7 @@ bool move_back_to_recursion(task_t *mv_task)
 EXIT:
 	SET_TO_RECU_LEVEL(&(GET_TASK_BY_PTR(task_to_mv))); 
 	bool rnt = copy_insert_task_by_priority(GET_SINGLE_LEVEL_HD, &(GET_TASK_BY_PTR(task_to_mv))); 
-	free(task_to_mv); 
+	FREE_TASK_TYPE(task_to_mv); 
 	return rnt; 
 }
 bool move_task_in_queue_by_id(uint16_t task_id, list_type_t flag)
@@ -426,31 +431,31 @@ task_type_t *alloc_task_type(char *s, size_t len)
 	/* 计算为需要为url分配的空间 */
 	len = len - (ptr - s); 
 	GET_TASK_URL(GET_TASK_BY_PTR(task)) = calloc(1, len); 
-	if (GET_TASK_URL(GET_TASK_BY_PTR(task)) == NULL) {free(task); return NULL; }
+	if (GET_TASK_URL(GET_TASK_BY_PTR(task)) == NULL) {FREE_TASK_TYPE(task); return NULL; }
 	strcpy(GET_TASK_URL(GET_TASK_BY_PTR(task)), ptr); 
 	return task; 
 }
 bool delete_task_not_start_dl(uint16_t task_id)
 {
 	task_type_t *task = delete_task_by_id(GET_HIGHEST_LEVEL_HD, task_id); 
-	if (task != NULL) {free(task); return true; }
+	if (task != NULL) {FREE_TASK_TYPE(task); return true; }
 	task = delete_task_by_id(GET_SINGLE_LEVEL_HD, task_id); 
-	if (task != NULL) {free(task); return true; }
+	if (task != NULL) {FREE_TASK_TYPE(task); return true; }
 	task = delete_task_by_id(GET_RECURSION_LEVEL_HD, task_id); 
-	if (task != NULL) {free(task); return true; }
+	if (task != NULL) {FREE_TASK_TYPE(task); return true; }
  	task = delete_task_by_id(GET_HIBERN_LIST_HD, task_id); 
-	if (task != NULL) {free(task); return true; }
+	if (task != NULL) {FREE_TASK_TYPE(task); return true; }
 	return false; 
 }
 uint16_t reset_all_task_id()
 {
-#define SET_TASK_ID_OF_HEAD(hd) {\
+#define SET_TASK_ID_OF_HEAD(hd) do {\
 	task_type_t *task = GET_TASK_HEAD_BY_PTR((hd)); \
 	do {\
 		SET_TASK_ID(GET_TASK_BY_PTR(task), task_id);\
 		task_id++; \
 	} while ((task = task->next_task));\
-}
+} while (0)
 	/* 此函数保证只会设置一次task_id */
 	static bool seted = false; 
 	uint16_t task_id = 1; 
