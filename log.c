@@ -249,12 +249,12 @@ void puts_stored_msg()
 	if (first ==  - 1) return; 
 	if (end < first) {
 		for (; first < DEFAULT_STORE; first++) 
-			OUT_STORE(p); 
+			OUT_STORE(p + first); 
 		for (first = 0; first < end; first++) 
-			OUT_STORE(p); 
+			OUT_STORE(p + first); 
 	} else {
 		for (; first < end; first++)
-			OUT_STORE(p); 
+			OUT_STORE(p + first); 
 	}
 	stored_msg.first_msg =  - 1; 
 	stored_msg.next_empty_mem = 0; 
@@ -330,7 +330,7 @@ void save_to_append(char *s)
 	int first = stored_msg.first_msg; 
 	int len  = strlen(s);
 	if (first == end)
-		if (++stored_msg.first_msg == DEFAULT_STORE) stored_msg.first_msg = 0; 
+		if (++(stored_msg.first_msg) == DEFAULT_STORE) stored_msg.first_msg = 0; 
 	if (len >= DEFALUT_MSG_LEN) {
 		if (IS_DYNAMIC_BY_PTR((p + end))) free((p + end)->alloc); 
 		(p + end)->alloc = malloc(len + 1); 
@@ -345,6 +345,7 @@ void save_to_append(char *s)
 	strcpy((p + end)->msg, s); 
 	((p + end)->msg)[len] = '\0'; 
 	(p + end)->content = (p + end)->msg; 
+	if (stored_msg.first_msg ==  - 1) stored_msg.first_msg = 0; 
 EXIT:
 	if (++(stored_msg.next_empty_mem) == DEFAULT_STORE)
 		stored_msg.next_empty_mem = 0; 
