@@ -88,7 +88,7 @@ void log_init(int (*log_output_callback)(void *),void *arg,  bool no_cache)
 	if (only_once == 0){
 		only_once = 1; 
 		enable_cache = true; 
-		if (log_output_callback = NULL)
+		if (log_output_callback == NULL)
 			log_fd = default_output_cb(NULL);  
 		else {
 			log_fd = log_output_callback(arg); 
@@ -132,6 +132,7 @@ void nohibit_log()
 }
 void log_fflush()
 {
+	if (log_cache.used == 0) return; 
 	str_write(log_fd, log_cache.cache, log_cache.used); 
 	log_cache.used = 0; 
 }
@@ -193,9 +194,9 @@ void log_puts(log_option option, char *msg)
 	size_t len = strlen(msg); 
 	m = malloc(len + 2); 
 	if (m == NULL) exit (ERR_ALLOC); 
-	m[len] = '\n'; 
-	m[len] = '\0'; 
 	strcpy(m, msg); 
+	m[len] = '\n'; 
+	m[len + 1] = '\0'; 
 	log_printf(option, m); 
 	free (m); 
 }
@@ -277,6 +278,7 @@ bool write_to(log_option option, char *fmt, va_list args)
 		return false; 
 	}
 	size_t len = strlen(buff); 
+	bool flag = true; 
 	buff[len] = '\0'; 
 	switch (option) {
 		case LOG_ERROR:
@@ -284,8 +286,16 @@ bool write_to(log_option option, char *fmt, va_list args)
 			save_to_append(buff); 
 			break; 
 		case LOG_WARNING:
-			if (++warning == MAX_WARNNING_MSG) log_fflush(); 
-			str_write(log_fd, buff, len); 
+			if (++warning == MAX_WARNNING_MSG) {
+				warning = 0; 
+				flag = false; 
+				log_fflush(); 
+				str_write(log_fd, buff, len); 
+				break; 
+			}
+			if (flag && enable_cache && warning < MAX_WARNNING_MSG)
+				print_to_cache(buff, len); 
+			if (!enable_cache && flag) str_write(log_fd, buff, len); 
 			save_to_append(buff); 
 			break; 
 		case LOG_VERBOS:
@@ -342,15 +352,17 @@ EXIT:
 }
 void str_write(int fd, char *s, size_t len)
 {
+	assert(s != NULL); 
+	assert(len != 0); 
 	size_t wnt = 0; 
 	size_t total = 0; 
-
-	if (log_cache.used == 0) return; 
+	if (len == 0) return; 
 AGAIN:
 	while ((wnt = write(log_fd, s, len))) {
 		if ((wnt + total) < len)
 			continue; 
 		total += wnt; 
+		return; 
 	}
 	if (wnt < 0) {
 		bool flag = true; 
@@ -385,4 +397,5 @@ void print_to_cache(char *s, size_t len)
 	if ((p->used + len) >= p->length) str_write(log_fd, s, len); 
 	strcpy(p->cache + p->used, s); 
 	(p->cache)[p->used + len] = '\0'; 
+	p->used += len; 
 }
