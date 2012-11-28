@@ -215,14 +215,8 @@ uint32_t prime_size(uint32_t size, uint8_t *prime_offset)
   for (i = *prime_offset; i < countof (primes); i++)
     if (primes[i] >= size)
       {
-        /* Set the offset to the next prime.  That is safe because,
-           next time we are called, it will be with a larger SIZE,
-           which means we could never return the same prime anyway.
-           (If that is not the case, the caller can simply reset
-           *prime_offset.)  */
         *prime_offset = i + 1;
         return primes[i];
       }
-
   abort ();
 }
