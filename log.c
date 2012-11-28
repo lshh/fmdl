@@ -282,6 +282,7 @@ bool write_to(log_option option, char *fmt, va_list args)
 	buff[len] = '\0'; 
 	switch (option) {
 		case LOG_ERROR:
+			log_fflush(); 
 			str_write(log_fd, buff, len); 
 			save_to_append(buff); 
 			break; 
