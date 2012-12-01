@@ -19,11 +19,11 @@
 
 #define TASK_LIST_9DYI5RXI
 #include <stdint.h>
+#include "error_code.h"
 /*
  * 每个任务的特有结构，客户端以此结构形式传递新任务
  * 到服务器端 
  * */
-typedef enum{false, true} bool; 
 typedef struct task
 {
 	char *task_url; 		/* 下载地址 */

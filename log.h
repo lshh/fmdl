@@ -20,7 +20,8 @@
 #define LOG_OYFB6UPY
 
 #include <stdio.h>
-typedef enum {false, true}bool; 
+#include "error_code.h"
+typedef enum{false, true} bool; 
 typedef enum{
 	LOG_ERROR, 		/* 错误信息 */
 	LOG_WARNING, 	/* 警告信息 */

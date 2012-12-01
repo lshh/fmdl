@@ -21,8 +21,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include "log.h"
-
+#include "error_code.h"
 typedef struct cell
 {
 	void *key; 

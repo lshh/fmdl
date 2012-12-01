@@ -218,8 +218,8 @@ void redirct_log_ouput(int (*log_output_callback)(void *), void *arg, bool no_ca
 			log_fd = old_fd; 
 			log_puts(LOG_WARNING, "redict log file failed! still use old output interface!"); 
 			return ; 
-		}
-		close(old_fd); 
+		} else 
+			close(old_fd); 
 		log_callback = (void*)log_output_callback; 
 		cb_arg = arg; 
 	}
