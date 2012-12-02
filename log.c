@@ -401,3 +401,12 @@ void print_to_cache(char *s, size_t len)
 	(p->cache)[p->used + len] = '\0'; 
 	p->used += len; 
 }
+void log_debug(log_option option, char *fmt, ...)
+{
+#if defined ENABLE_DEBUG
+	va_list args; 
+	va_start(args, fmt); 
+	log_printf(option, args); 
+	va_end(args); 
+#endif
+}

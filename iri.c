@@ -69,8 +69,7 @@ void set_content_encode(const iri_t *iri, const char *charset)
 static void set_encode(const iri_t *iri, const char *charset,
 		enum encode_type flag)
 {
-//	DEBUGINFO("Set URL encode to %s!The old encode is %s\n",
-//		   	charset , iri->url_encode); 
+	DEBUGINFO(("Set URL encode to %s!The old encode is %s\n", charset , iri->url_encode)); 
 	char **s; 
 	switch (flag) {
 		case SET_CONTENT_ENCODE:
@@ -193,7 +192,7 @@ bool convert(iconv_t cd, char *src, size_t len, char **n)
 			invaild++; 
 		} else if (errno == E2BIG) {
 			size_t donelen = dlen; 
-			dlen = donelen + len << 1; 
+			dlen = donelen + (len << 1); 
 			char *nm = malloc(dlen + 1); 
 			assert (nm != NULL); 
 			memcpy(nm, dst, donelen); 
@@ -201,7 +200,7 @@ bool convert(iconv_t cd, char *src, size_t len, char **n)
 			dst = nm; 
 			olen = dlen - donelen; 
 			*o = dst + donelen; 
-		}
+		} else break; 
 	}
 	return false; 
 }

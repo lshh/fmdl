@@ -19,8 +19,15 @@
 
 #define ERROR_CODE_W7YVQJBN
 #include "log.h"
+#define NO_ERROR	0x0000
+/*------------ 错误码 --------------*/
 #define ERR_LOG		0x0010		/* 日志错误 */
 #define ERR_ALLOC	0x0011		/* 内存错误 */
 #define ERR_PIPE	0x0012		/* 收到PIPE信号 */
+//URL错误码
+#define ERR_UNSUPPORT_SCHEME 0x0020
+#define ERR_SCHEME_SET_FAIL	0x0021
+#define ERR_BADURL			0x0022
 /* ----------调试信息打印接口---------- */
+#define DEBUGINFO(arg) 	log_debug(LOG_ERROR, arg)
 #endif /* end of include guard: ERROR_CODE_W7YVQJBN */

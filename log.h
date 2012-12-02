@@ -54,4 +54,6 @@ void redict_log_output_by_signal(int);
 /* 关闭日志输出接口, 调用此函数意味着系统会丢弃所有日
  * 志包括在缓冲区中的尚未输出的日志 */
 bool log_close(); 
+/* DEBUG 接口 */
+void log_debug(log_option, char*fmt, ...); 
 #endif /* end of include guard: LOG_OYFB6UPY */
