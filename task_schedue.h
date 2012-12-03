@@ -44,9 +44,10 @@ struct task_queue_head
 bool insert_new_task(task_t *new_task); 
 /*
  * 初始化任务结构，读取写入文件中的任务并分配合适的task_id
- * 返回值为下一个可用的task_id
+ * 返回值为下一个可用的task_id, rd指示是否读入上次保存的任务
+ * true为读入false为放弃
  */
-uint16_t init_task_queue(); 
+uint16_t init_task_queue(bool rd); 
 bool move_task_in_queue_by_id(uint16_t task_id, list_type_t flag); 
 /* 返回一个TASK_T结构似乎更加合理但是会造成内存泄露或者更多的数据复制 */
 task_type_t * get_task_to_dl(); 

@@ -72,10 +72,10 @@ static bool read_task_queue_from_file();
 static bool write_to_file(const int fd, const task_type_t *hd, const list_type_t flag); 
 static task_type_t *alloc_task_type(char *s, size_t len); 
 static const char *default_task_file(); 
-uint16_t init_task_queue()
+uint16_t init_task_queue(bool rd)
 {
 	memset(&task_queue, 0, sizeof(task_queue)); 
-	read_task_queue_from_file(); 
+	if (rd) read_task_queue_from_file(); 
 	return reset_all_task_id(); 
 }
 bool insert_new_task(task_t *new_task)

@@ -123,7 +123,8 @@ int main(int argc,  char *argv[])
 		exit(ERR_OPTIONS); 
 	}
 
-	if (!options.discard_last_task) task_id = init_task_queue(); 
+	task_id = init_task_queue(!options.discard_last_task); 
+
 	if (nurls) {
 		int i = 0; 
 		for (; i < nurls; i++, optind++) {
