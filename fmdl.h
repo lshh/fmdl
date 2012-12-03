@@ -49,6 +49,7 @@ struct fmdl_option
 	bool only_ipv6; 		//只连接IPv6地址
 	char *username; 		//用户名
 	char *passwd; 			//用户密码
+	unsigned long quota; 	//磁盘配额默认已Kb为单位
 	//HTTP选项
 	char *http_user; 	//HTTP用户名
 	char *http_passwd; 	//HTTP密码

@@ -57,6 +57,7 @@ int main(int argc,  char *argv[])
 		{"only-ipv6", 0, NULL, 0}, 
 		{"username", 1, NULL, 0}, 
 		{"passwd", 1, NULL, 0}, 
+		{"quota", 1, NULL, 0}, 
 		//HTTP
 		{"http-user", 1, NULL, 0}, 
 		{"http-passwd", 1, NULL, 0}, 

@@ -59,6 +59,7 @@ struct options_map optmap[] = {
 	{OPT_BOOL, set_bool, &(options.only_ipv6)}, 
 	{OPT_LINE, get_string, &(options.username)}, 
 	{OPT_LINE, get_string, &(options.passwd)}, 
+	{OPT_VALUE, get_val, &(options.quota)}, 
 	{OPT_LINE, get_string, &(options.http_user)}, 
 	{OPT_LINE, get_string, &(options.http_passwd)}, 
 	{OPT_BOOL, set_bool, &(options.nocache)}, 
@@ -113,13 +114,33 @@ void get_string(void *arg)
 }
 void get_val(void *arg)
 {
-	long val; 
+	unsigned long val; 
 	errno = 0; 
+	char *endptr; 
+	char c = 0; 
 	if (arg == NULL) 
 		HELP_EXIT(1); 
-	val = strtol(arg, NULL, 10); 
+	val = strtol(optarg, &endptr, 10); 
 	if (errno == EINVAL || errno == ERANGE) 
 		HELP_EXIT(errno); 
+	if (endptr != NULL) c = tolower(*endptr); 
+	//磁盘配额选项需要特殊处理
+	if (arg == &(options.quota)) {
+		switch (c) {
+			case 'b':
+				*(unsigned long*)arg = val < 1024?1:val >> 10; 
+				break; 
+			case 'm':
+				*(unsigned long*)arg = val << 10; 
+				break;
+			case 'g':
+				*(unsigned long*)arg = val << 20; 
+				break; 
+			default:
+				*(unsigned long*)arg = val; 
+		}
+		return; 
+	}
 	*(long*)arg = val; 
 }
 void get_multi_string(void *arg)
