@@ -30,10 +30,12 @@ struct fmdl_option
 	char *input_file; 		//从input_file中解析URL
 	bool as_html; 			//是否将input_file作为HTML文件
 	char *merge_url; 		//解析与merge_url相关的URL
+	bool quiet;				//是否进入安静模式
+	bool only_save; 		//只将链接读入并不下载待下次自动开始
 	//下载选项
 	uint32_t ntrys; 		//尝试次数, 0默认为无限次
 	char *output; 			//将下载数据写入到output
-	bool clobber; 			//是否覆盖已下载或同名文件
+	bool clobber; 			//是否覆盖已下载或同名文件默认不覆盖
 	bool print_response; 	//是否打印服务器响应
 	bool contin; 			//是否继续上次下载
 	int	 timeout; 			//设置超时(所有的均设置为此值)
@@ -50,6 +52,7 @@ struct fmdl_option
 	char *username; 		//用户名
 	char *passwd; 			//用户密码
 	unsigned long quota; 	//磁盘配额默认已Kb为单位
+	bool discard_last_task; //丢弃上次未开始下载的任务
 	//HTTP选项
 	char *http_user; 	//HTTP用户名
 	char *http_passwd; 	//HTTP密码
