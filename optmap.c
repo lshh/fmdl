@@ -37,7 +37,7 @@ static void get_val(void*arg);
 struct options_map optmap[] = {
 	{OPT_BOOL, set_bool, &(options.background)}, 
 	{OPT_LINE, get_string, &(options.log_output)}, 
-	{OPT_BOOL, set_bool, &(options.append_log)}, 
+//	{OPT_BOOL, set_bool, &(options.append_log)}, 
 	{OPT_LINE, get_string, &(options.input_file)}, 
 	{OPT_BOOL, set_bool, &(options.as_html)}, 
 	{OPT_LINE, get_string, &(options.merge_url)}, 

@@ -26,7 +26,7 @@ struct fmdl_option
 	//一般选项
 	bool background; 		//进入后台
 	char *log_output; 		//日志输出文件
-	bool append_log; 		//是否在已有文件中追加日志
+//	bool append_log; 		//是否在已有文件中追加日志
 	char *input_file; 		//从input_file中解析URL
 	bool as_html; 			//是否将input_file作为HTML文件
 	char *merge_url; 		//解析与merge_url相关的URL

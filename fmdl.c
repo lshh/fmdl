@@ -19,6 +19,7 @@
 #include "task_schedue.h"
 #include "fmdl.h"
 #include "error_code.h"
+#include "url.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -30,6 +31,7 @@
 #define VERSION		fmdl/1.0
 static void print_version(); 
 void initial(); 
+static int open_file(void*); 
 extern struct options_map optmap[]; 
 int main(int argc,  char *argv[])
 {
@@ -37,7 +39,7 @@ int main(int argc,  char *argv[])
 		//generic
 		{"background", 0, NULL, 0}, 
 		{"log-output", 1, NULL, 0}, 
-		{"append-log", 0, NULL, 0}, 
+//		{"append-log", 0, NULL, 0}, 
 		{"input-file", 1, NULL, 0},
 		{"as-html", 0, NULL, 0}, 
 		{"merge-url", 1, NULL, 0}, 
@@ -118,11 +120,13 @@ int main(int argc,  char *argv[])
 		fprintf(stderr, "can`t specify both only-ipv4 and only-ipv6\n"); 
 		exit(ERR_OPTIONS); 
 	}
-	if (options.discard_last_task && !nurl && !options.input_file) {
-		fprintf(stderr, "miss URLs\n"); 
-		exit(ERR_OPTIONS); 
-	}
 
+	if (options.input_file) {
+		/* 日志重定向到文件，启用缓存 */
+		redirct_log_ouput(open_file, options.log_output, false); 
+	}
+	//进入安静模式
+	if (options.quite) inhibit_log(); 
 	task_id = init_task_queue(!options.discard_last_task); 
 
 	if (nurls) {
@@ -137,13 +141,20 @@ int main(int argc,  char *argv[])
 			SET_TASK_ID(task, task_id); 
 			if (insert_new_task(&task)) 
 				task_id++; 
+			else 
+				log_printf(LOG_ERROR, "can`t insert a new task in queue!discard the url(%s)\n", 
+						GET_TASK_URL(task)); 
 		}
 	}
 	if (options.input_file) {
 		//从输入文件中读入链接
 	}
+	if (total_tasks() == 0) {
+		fprintf(stderr, "There is no URL to download! Exit normally\n"); 
+		exit(0); 
+	}
 	if(options.only_save) {
-		fprintf(stderr, "NOW save all the tasks!\n"); 
+		fprintf(stderr, "NOW save all the tasks! program exit normally!\n"); 
 		save_tasks_queue_to_file(); 
 		exit(0); 
 	}
@@ -157,9 +168,22 @@ int main(int argc,  char *argv[])
 	task_type_t *task; 
 	while ((task = get_task_to_dl())) {
 		char *url = GET_TASK_URL(GET_TASK_BY_PTR(task)); 
-		/*
-		 * 下载处理模块
-		 */
+		int err; 
+		url_t *nurl = url_parsed(url, &err); 
+		if (err != NO_ERROR) {
+			log_printf(LOG_WARNING, "bad url(%s) discard it\n", url); 
+			continue; 
+		}
+		//递归下载
+		uint8_t type = GET_TASK_PRIORITY(GET_TASK_BY_PTR(task)); 
+		/* 因为暂时不使用其他优先级队列因此这也判断是没有问题的 */
+		if (type&TO_RECU) {
+			recursive_download(); 
+		} else if (type&TO_SINGLE) {
+			start_download(); 
+		} else {
+			log_printf(LOG_WARNING, "unknown URL(%s) level\n", url); 
+		}
 		free(task); 
 		free(url); 
 	}
@@ -187,4 +211,9 @@ void print_help()
 }
 void print_version()
 {
+}
+int open_file(void*arg)
+{
+	assert(arg != NULL); 
+	return open(arg, O_WRONLY|O_CREAT, 0622); 
 }
