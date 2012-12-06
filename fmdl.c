@@ -22,6 +22,9 @@
 #include "url.h"
 
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <assert.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <signal.h>
@@ -126,7 +129,7 @@ int main(int argc,  char *argv[])
 		redirct_log_ouput(open_file, options.log_output, false); 
 	}
 	//进入安静模式
-	if (options.quite) inhibit_log(); 
+	if (options.quiet) inhibit_log(); 
 	task_id = init_task_queue(!options.discard_last_task); 
 
 	if (nurls) {
@@ -178,9 +181,9 @@ int main(int argc,  char *argv[])
 		uint8_t type = GET_TASK_PRIORITY(GET_TASK_BY_PTR(task)); 
 		/* 因为暂时不使用其他优先级队列因此这也判断是没有问题的 */
 		if (type&TO_RECU) {
-			recursive_download(); 
+			recursive_download(nurl, url); 
 		} else if (type&TO_SINGLE) {
-			start_download(); 
+			start_download(nurl, url); 
 		} else {
 			log_printf(LOG_WARNING, "unknown URL(%s) level\n", url); 
 		}
