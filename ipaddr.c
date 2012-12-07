@@ -85,7 +85,7 @@ bool valid_ipv6_addr(const char *s, size_t len)
 			if (b == s) return false; 
 			++b; 
 			if (!valid_ipv4_addr(b, strlen(b))) return false; 
-			bit_width += 32; 
+			bit_width += 16; 
 			break; 
 		} else 
 			return false; 
