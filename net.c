@@ -1,9 +1,9 @@
 /*
  * =====================================================================================
  *
- *       Filename:  ipaddr.c
+ *       Filename:  net.c
  *
- *    Description:  判断IP地址
+ *    Description:  网络接口
  *
  *        Version:  1.0
  *        Created:  2012年12月07日 12时46分34秒
@@ -15,17 +15,15 @@
  *
  * =====================================================================================
  */
+#include "net.h"
+#include "error_code.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
-
-#include "error_code.h"
-
-bool valid_ipv6_addr(const char *s, size_t len); 
-bool valid_ipv4_addr(const char *s, size_t len); 
 
 bool valid_ipv4_addr(const char *s, size_t len)
 {
@@ -43,6 +41,7 @@ bool valid_ipv4_addr(const char *s, size_t len)
 		} else if (*p == '.' && first == false) {
 			if (sum > 255) return false; 
 			if (++cnt > 3) return false; 
+			if (cnt == 3 && *(p + 1) == '\0') return false; 
 			sum = 0; 
 		} else 
 			return false; 
@@ -64,7 +63,10 @@ bool valid_ipv6_addr(const char *s, size_t len)
 		flag = true; 
 		p += 2; 
 		len -= 2; 
-	}
+	} 
+	//如果只有两个::
+	if (len == 0) return false; 
+
 	while (*p && len--) {
 		if (isdigit(*p)) {
 			sum = sum*10 + *p - '0'; 
@@ -74,6 +76,7 @@ bool valid_ipv6_addr(const char *s, size_t len)
 			if (*(p + 1) == ':' && !flag) {
 				flag = true; 
 				p += 2; 
+				if (*p == ':') return false; 
 				sum = 0; 
 				continue; 
 			}else if (*(p + 1) == ':' && flag) 

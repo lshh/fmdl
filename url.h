@@ -37,6 +37,7 @@ typedef enum {
 typedef struct _supported_t {
 	char *prefix; 	
 	scheme_t scheme; 	
+	uint16_t port; 
 	scm_flag_t flag; 		
 } supported_t;
 typedef struct _url_t {
@@ -57,7 +58,7 @@ typedef struct _url_t {
  * 将URL分割为一个url_t结构
  * *err返回错误码
  */
-url_t url_parsed(char *url, int *err); 
+url_t *url_parsed(char *url, int *err); 
 /*
  * 获取URL的协议
  */
@@ -67,4 +68,9 @@ scheme_t url_scheme(char *url);
  * 则返回NULL
  */
 char *short_hand_url(char *url); 
+/*
+ * 编码URL
+ */
+char *encode_url(char *orig_url); 
+char *decode_url(char *encode_url); 
 #endif /* end of include guard: URL_1SE861HM */

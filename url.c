@@ -17,6 +17,7 @@
  */
 #include "url.h"
 #include "error_code.h"
+#include "net.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,11 +25,58 @@
 #include <string.h>
 #include <assert.h>
 
+#define NUM_TODIGIT(n) "0123456789ABCDEF"[n]
+enum char_type {unsafe_char = 0x01, reserved_char = 0x02}; 
+#define IS_UNSAFE(c) (ascii_table[(c)] & unsafe_char)
+#define IS_RESERVED(c) (ascii_table[(c)] & reserved_char)
+#define U unsafe_char
+#define R reserved_char
+#define RU U|R
+static const unsigned char ascii_table[256] =
+{
+  U,  U,  U,  U,   U,  U,  U,  U,   /* NUL SOH STX ETX  EOT ENQ ACK BEL */
+  U,  U,  U,  U,   U,  U,  U,  U,   /* BS  HT  LF  VT   FF  CR  SO  SI  */
+  U,  U,  U,  U,   U,  U,  U,  U,   /* DLE DC1 DC2 DC3  DC4 NAK SYN ETB */
+  U,  U,  U,  U,   U,  U,  U,  U,   /* CAN EM  SUB ESC  FS  GS  RS  US  */
+  U,  0,  U, RU,   R,  U,  R,  0,   /* SP  !   "   #    $   %   &   '   */
+  0,  0,  0,  R,   R,  0,  0,  R,   /* (   )   *   +    ,   -   .   /   */
+  0,  0,  0,  0,   0,  0,  0,  0,   /* 0   1   2   3    4   5   6   7   */
+  0,  0, RU,  R,   U,  R,  U,  R,   /* 8   9   :   ;    <   =   >   ?   */
+ RU,  0,  0,  0,   0,  0,  0,  0,   /* @   A   B   C    D   E   F   G   */
+  0,  0,  0,  0,   0,  0,  0,  0,   /* H   I   J   K    L   M   N   O   */
+  0,  0,  0,  0,   0,  0,  0,  0,   /* P   Q   R   S    T   U   V   W   */
+  0,  0,  0, RU,   U, RU,  U,  0,   /* X   Y   Z   [    \   ]   ^   _   */
+  U,  0,  0,  0,   0,  0,  0,  0,   /* `   a   b   c    d   e   f   g   */
+  0,  0,  0,  0,   0,  0,  0,  0,   /* h   i   j   k    l   m   n   o   */
+  0,  0,  0,  0,   0,  0,  0,  0,   /* p   q   r   s    t   u   v   w   */
+  0,  0,  0,  U,   U,  U,  0,  U,   /* x   y   z   {    |   }   ~   DEL */
 
-static supported_t support_proto[] = {
-	{"http://", SCHEME_HTTP, scm_has_query|scm_has_frag}, 
-	{"ftp://", SCHEME_FTP, scm_has_param|scm_has_frag}
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+  U, U, U, U,  U, U, U, U,  U, U, U, U,  U, U, U, U,
+};
+#undef R
+#undef U
+#undef RU
+supported_t support_proto[] = {
+	{"http://", SCHEME_HTTP, 80, scm_has_query|scm_has_frag}, 
+	{"ftp://", SCHEME_FTP, 21, scm_has_param|scm_has_frag}
 }; 
+static uint16_t default_scheme_port(scheme_t scheme); 
+static char *skip_scheme(const char *url); 
+static char *skip_user_info(const char *url, char **b, char**e); 
+static char *init_sep(scheme_t scheme); 
+static bool need_encode(char *c); 
+static void get_dir_file(const char *path, char **dir, char **file); 
+static bool is_digit(char c); 
+static void get_name_passwd(const char *s, size_t l, char **n, char **p); 
+
 scheme_t url_scheme(char *url)
 {
 	assert(url != NULL); 
@@ -91,7 +139,7 @@ char *short_hand_url(char *url)
 	} else *p = '/'; 
 	return new; 
 }
-url_t url_parsed(char *url, int *err)
+url_t *url_parsed(char *url, int *err)
 {
 	assert(url != NULL); 
 	assert(err != NULL); 
@@ -106,9 +154,10 @@ url_t url_parsed(char *url, int *err)
 	char *frag_b = NULL, *frag_e = NULL; 
 	char *newurl; 
 	char *p; 
+	char *sep; 
 	url_t *ret = malloc(sizeof(url_t)); 
-	assert(ret == NULL); 
-	
+	assert(ret != NULL); 
+	*err = NO_ERROR; 
 	scheme = url_scheme(url); 
 	newurl = strdup(url); 
 	if (scheme == SCHEME_UNSUPPORT) {
@@ -117,8 +166,8 @@ url_t url_parsed(char *url, int *err)
 	}
 	if (scheme == SCHEME_NOSCHEME)
 		newurl = short_hand_url(url); 
-
-	#define IF_BADURL(p) if(!(p)) {*err = ERR_BADURL; goto ERROR; }
+	scheme = url_scheme(newurl); 
+#define IF_BADURL(p) if(!(p)) {*err = ERR_BADURL; goto ERROR; }
 
 	port = default_scheme_port(scheme); 
 	//跳过协议字段
@@ -137,7 +186,7 @@ url_t url_parsed(char *url, int *err)
 	sep = init_sep(scheme);
 	if (*p == '[') {
 		/* IPv6地址 */
-		char *e = strchar(p, ']'); 
+		char *e = strchr(p, ']'); 
 		IF_BADURL(e); 
 		host_b = p + 1; 
 		host_e = e; 
@@ -152,24 +201,35 @@ url_t url_parsed(char *url, int *err)
 	 * www.foo.bar[:port]/....
 	 * 			   ^ or  ^ or ...
 	 */
-	#define IF_GO_END(p) if(!(p)) goto END
+#define IF_GO_END(p) if(!(p)) goto END
 	IF_GO_END(p); 
 	p = strpbrk(p, sep++); 
 	IF_GO_END(p); 
 	if (*p == ':') {
 		port = 0; 
 		char *e = strpbrk(p, sep); 
-		while(p != e && *p) port = port*10 + *p++ - '0'; 
+		while(p != e && p + 1 != e && *p){
+			port = port*10 + *++p - '0'; 
+		}	
 	}
-	#define GET_STRING(charset, arg) do{\
+#define GET_STRING(charset, arg) do{\
+	IF_GO_END(p); \
+	char *e = strpbrk(p, sep++); \
+	IF_GO_END(e); \
+	if (*e == charset) arg##_b = e + 1; \
+	e = strpbrk(p, sep); \
+	arg##_e = e == NULL?arg##_b + strlen(arg##_b):e; \
+	p = e; \
+} while (0)
+	{
 		IF_GO_END(p); 
 		char *e = strpbrk(p, sep++); 
 		IF_GO_END(e); 
-		if (*e == charset) arg##_b = e; 
+		if (*e == '/') path_b= e; 
 		e = strpbrk(p, sep); 
-		arg##_e = e == NULL?arg##_b + strlen(arg##_b):e; 
-		p = e == NULL?e:e + 1; 
-	} while (0)
+		path_e = !e?path_b + strlen(path_b):e; 
+		p = e; 
+	}
 	if (support_proto[scheme].flag & scm_has_param)
 		GET_STRING(';', param);
 	if (support_proto[scheme].flag & scm_has_query)
@@ -181,15 +241,15 @@ url_t url_parsed(char *url, int *err)
 #undef IF_BADURL
 	/* --------end-------- */
 END:
-	ret->url = encode_url(newurl); 
+	ret->encode_url = encode_url(newurl); 
 	ret->host = strndup(host_b, host_e - host_b); 
 	ret->port = port; 
 	ret->scheme = scheme; 
 	ret->path = path_b == NULL?strdup("/"):strndup(path_b, path_e - path_b);
 	get_dir_file(ret->path, &(ret->dir), &(ret->file)); 
-	ret->param = param_b == NULL?param_b:strndup(param_b, param_e); 
-	ret->query = query_b == NULL?query_b:strndup(query_b, query_e); 
-	ret->frag = frag_b == NULL?frag_b:strndup(frag_b, frag_e); 
+	ret->param = param_b == NULL?param_b:strndup(param_b, param_e - param_b); 
+	ret->query = query_b == NULL?query_b:strndup(query_b, query_e - query_b); 
+	ret->frag = frag_b == NULL?frag_b:strndup(frag_b, frag_e - frag_b); 
 	if (name_b == NULL) {
 		free(newurl); 
 		return ret; 
@@ -200,5 +260,152 @@ END:
 ERROR:
 	free(newurl); 
 	free(ret); 
-	return NULL; 
+	return (url_t*)NULL; 
+}
+uint16_t default_scheme_port(scheme_t scheme)
+{
+	return support_proto[scheme].port; 
+}
+char *skip_scheme(const char *url)
+{
+	assert(url != NULL); 
+	
+	char *sep = "://"; 
+	char *p = strstr(url, sep); 
+	if (!p) return NULL;
+	return p + 3; 
+}
+char *skip_user_info(const char *url, char **b, char **e)
+{
+	assert(url != NULL); 
+	assert(b != NULL && e != NULL); 
+
+	char sep = '@'; 
+	char *p = strchr(url, sep); 
+	*b = url; 
+	/* 没有用户信息字段 */
+	if (!p) {*b = NULL; *e = NULL; return url; }
+	*e = p; 
+	return ++p; 
+}
+char *init_sep(scheme_t scheme)
+{
+	static char sep[8] = ":/"; 
+	char *p = sep + 2; 
+	if (support_proto[scheme].flag & scm_has_param)
+		*p++ = ';'; 
+	if (support_proto[scheme].flag & scm_has_query)
+		*p++ = '?'; 
+	if (support_proto[scheme].flag & scm_has_frag)
+		*p++ = '#'; 
+	*p = '\0'; 
+	return sep; 
+}
+char *encode_url(char *orig_url)
+{
+	assert(orig_url != NULL); 
+	size_t encode_count = 0; 
+	char *p = orig_url; 
+	char *new, *n; 
+	size_t len; 
+	while (*p != '\0') if (need_encode(p++)) encode_count++; 
+	if (encode_count == 0)  return strdup(orig_url); 
+	len = strlen(orig_url) + encode_count*2; 
+	new = malloc(len + 1); 
+	assert(new != NULL); 
+	p = orig_url; 
+	n = new; 
+
+	while (*p) {
+		if (need_encode(p)) {
+			*n++ = '%'; 
+			*n++ = NUM_TODIGIT(*p >> 4);
+			*n++ = NUM_TODIGIT(*p & 0x0f); 
+		}else 
+			*n++ = *p; 
+		p++; 
+	}
+	new[len] = '\0'; 
+	return new; 
+}
+bool need_encode(char *c)
+{
+	if (*c == '%') {
+		if (is_digit(*(c + 1)) && is_digit(*(c + 1))) 
+			return false; 
+		else return true; 
+	}
+	if (IS_UNSAFE(*c) && !IS_RESERVED(*c))
+		return true; 
+	return false; 
+}
+bool is_digit(char c)
+{
+	switch(c) {
+		case '0': case '1': case '2': case '3': case '4':
+		case '5': case '6': case '7': case '8': case '9':
+		case 'a': case 'b': case 'c': case 'd': case 'e':
+		case 'f': case 'A': case 'B': case 'C': case 'D':
+		case 'E': case 'F':
+			return true; 
+		default:
+			return false; 
+	}
+	abort(); 
+}
+void  get_dir_file(const char *path, char **dir, char **file)
+{
+	assert(path != NULL); 
+	assert(dir != NULL); 
+	assert(file != NULL); 
+
+	const char *p = path; 
+	char sep = '/'; 
+	char *dir_b = NULL, *dir_e = NULL; 
+	char *file_b = NULL, *file_e = NULL; 
+	file_b = strrchr(p, sep); 
+	if (file_b == NULL) return; 
+	if (*++file_b == '\0') {
+		*file = NULL; 
+		*dir = strdup(path); 
+		return; 
+	}
+	file_e = file_b + strlen(file_b); 
+	dir_e = file_b; 
+	dir_b = path; 
+	*dir = strndup(dir_b, dir_e - dir_b); 
+	*file = strndup(file_b, file_e - file_b); 
+}
+void get_name_passwd(const char *s, size_t l, char **n, char **p) 
+{
+	assert (n != NULL && p != NULL); 
+	char sep = ':'; 
+	char *ptr; 
+	size_t len = l; 
+	char *name_b, *name_e; 
+	char *pass_b, *pass_e; 
+	if (s == NULL || l == 0) {
+		*n = NULL; 
+		*p = NULL; 
+		return; 
+	}
+	ptr = s; 
+	while (*ptr != sep && l--) ptr++; 
+	if (*ptr != sep) {
+		/* 无密码字段 */
+		*p = NULL; 
+		*n = strndup(s, len); 
+		return ; 
+	}
+	name_e = ptr; 
+	name_b = s; 
+	*n = strndup(name_b, name_e - name_b); 
+	pass_b = ptr + 1; 
+	/* name:@...... */
+	if (*pass_b == '@') {
+		*p = NULL; 
+		return; 
+	}
+	pass_e = pass_b + l - 1; 
+	*p = strndup(pass_b, pass_e - pass_b); 
 }
