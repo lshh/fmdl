@@ -20,6 +20,7 @@
 #include "fmdl.h"
 #include "error_code.h"
 #include "url.h"
+#include "proto.h"
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -180,9 +181,9 @@ int main(int argc,  char *argv[])
 		//递归下载
 		uint8_t type = GET_TASK_PRIORITY(GET_TASK_BY_PTR(task)); 
 		/* 因为暂时不使用其他优先级队列因此这也判断是没有问题的 */
-		if (type&TO_RECU) {
+		if (type & TO_RECU) {
 			recursive_download(nurl, url); 
-		} else if (type&TO_SINGLE) {
+		} else if (type & TO_SINGLE) {
 			start_download(nurl, url); 
 		} else {
 			log_printf(LOG_WARNING, "unknown URL(%s) level\n", url); 

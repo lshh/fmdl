@@ -47,6 +47,12 @@ bool valid_ipv4_addr(const char *s, size_t len)
 	if (cnt != 3 || sum > 255) return false; 
 	return true; 
 }
+char num2digit(char c)
+{
+	char t = tolower(c); 
+	if (t >= 'a' && t <= 'f') return t - 'a' + 10; 
+	return t - '0'; 
+}
 bool valid_ipv6_addr(const char *s, size_t len)
 {
 	assert(s != NULL); 
@@ -62,8 +68,8 @@ bool valid_ipv6_addr(const char *s, size_t len)
 		len -= 2; 
 	}
 	while (*p && len--) {
-		if (isdigit(*p)) {
-			sum = sum*10 + *p - '0'; 
+		if (is_digit(*p)) {
+			sum = sum*16 + num2digit(*p); 		//IPv6地址为16进制`
 		} else if (*p == ':') {
 			bit_width += 16; 
 			if (sum > 0xffff) return false; 
@@ -108,9 +114,9 @@ int main(int argc, const char *argv[])
 		"65536::1", 						//false
 		"65535:32:323:325:534:32::192.168.1.", //true
 		"12:23:43:32:32:54:192.168.0.1", 		//ture
-		"192.168.1.1", 
-		"0::192.168.1.1", 
-		"0:::192.148.8.1", 
+		"192.168.1.1", 						//false
+		"0::192.168.1.1", 				//true
+		"0:::192.148.8.1", 					//false
 		"123::1:192.168.0.1" 					//true
 	}; 
 	int i = 0; 

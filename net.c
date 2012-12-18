@@ -68,8 +68,15 @@ bool valid_ipv6_addr(const char *s, size_t len)
 	if (len == 0) return false; 
 
 	while (*p && len--) {
-		if (isdigit(*p)) {
-			sum = sum*10 + *p - '0'; 
+		if (is_digit(*p)) {
+			if (isdigit(*p)) {
+				sum = sum*16 + *p - '0'; 
+				p++; 
+				continue; 
+			}
+			char c = tolower(*p); 
+			if (c < 'a' || c > 'f') return false; 
+			sum = sum*16 + c - 'a' + 10; 
 		} else if (*p == ':') {
 			bit_width += 16; 
 			if (sum > 0xffff) return false; 
@@ -97,4 +104,18 @@ bool valid_ipv6_addr(const char *s, size_t len)
 	if (flag && bit_width > 128) return false; 
 	if (!flag && bit_width != 128) return false; 
 	return true; 
+}
+bool is_digit(char c)
+{
+	switch(c) {
+		case '0': case '1': case '2': case '3': case '4':
+		case '5': case '6': case '7': case '8': case '9':
+		case 'a': case 'b': case 'c': case 'd': case 'e':
+		case 'f': case 'A': case 'B': case 'C': case 'D':
+		case 'E': case 'F':
+			return true; 
+		default:
+			return false; 
+	}
+	abort(); 
 }

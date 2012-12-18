@@ -22,6 +22,8 @@
 #include "error_code.h"
 #include "log.h"
 
+bool is_digit(char c); 
+
 bool valid_ipv6_addr(const char *s, size_t len); 
 bool valid_ipv4_addr(const char *s, size_t len); 
 #endif /* end of include guard: NET_D29XEW7D */

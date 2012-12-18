@@ -64,7 +64,7 @@ static const unsigned char ascii_table[256] =
 #undef R
 #undef U
 #undef RU
-supported_t support_proto[] = {
+static supported_t support_proto[] = {
 	{"http://", SCHEME_HTTP, 80, scm_has_query|scm_has_frag}, 
 	{"ftp://", SCHEME_FTP, 21, scm_has_param|scm_has_frag}
 }; 
@@ -74,7 +74,6 @@ static char *skip_user_info(const char *url, char **b, char**e);
 static char *init_sep(scheme_t scheme); 
 static bool need_encode(char *c); 
 static void get_dir_file(const char *path, char **dir, char **file); 
-static bool is_digit(char c); 
 static void get_name_passwd(const char *s, size_t l, char **n, char **p); 
 
 scheme_t url_scheme(char *url)
@@ -338,20 +337,6 @@ bool need_encode(char *c)
 	if (IS_UNSAFE(*c) && !IS_RESERVED(*c))
 		return true; 
 	return false; 
-}
-bool is_digit(char c)
-{
-	switch(c) {
-		case '0': case '1': case '2': case '3': case '4':
-		case '5': case '6': case '7': case '8': case '9':
-		case 'a': case 'b': case 'c': case 'd': case 'e':
-		case 'f': case 'A': case 'B': case 'C': case 'D':
-		case 'E': case 'F':
-			return true; 
-		default:
-			return false; 
-	}
-	abort(); 
 }
 void  get_dir_file(const char *path, char **dir, char **file)
 {
