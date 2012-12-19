@@ -69,10 +69,12 @@ static supported_t support_proto[] = {
 	{"ftp://", SCHEME_FTP, 21, scm_has_param|scm_has_frag}
 }; 
 static uint16_t default_scheme_port(scheme_t scheme); 
+static int char_2_digit(char c); 
 static char *skip_scheme(const char *url); 
 static char *skip_user_info(const char *url, char **b, char**e); 
 static char *init_sep(scheme_t scheme); 
 static bool need_encode(char *c); 
+static bool need_decode(char *c); 
 static void get_dir_file(const char *path, char **dir, char **file); 
 static void get_name_passwd(const char *s, size_t l, char **n, char **p); 
 
@@ -220,6 +222,7 @@ url_t *url_parsed(char *url, int *err)
 	arg##_e = e == NULL?arg##_b + strlen(arg##_b):e; \
 	p = e; \
 } while (0)
+
 	{
 		IF_GO_END(p); 
 		char *e = strpbrk(p, sep++); 
@@ -315,7 +318,7 @@ char *encode_url(char *orig_url)
 	p = orig_url; 
 	n = new; 
 
-	while (*p) {
+	while (*p != '\0') {
 		if (need_encode(p)) {
 			*n++ = '%'; 
 			*n++ = NUM_TODIGIT(*p >> 4);
@@ -393,4 +396,53 @@ void get_name_passwd(const char *s, size_t l, char **n, char **p)
 	}
 	pass_e = pass_b + l - 1; 
 	*p = strndup(pass_b, pass_e - pass_b); 
+}
+char *decode_url(const char *encode_url)
+{
+	assert (encode_url != NULL); 
+
+	const char *p = encode_url; 
+	size_t encode_cnt = 0; 
+	char *new; 
+	size_t newlen; 
+	while (*p != '\0') if (need_decode(p++)) encode_cnt++; 
+
+	if (encode_cnt == 0) return strdup(encode_url); 
+	newlen = strlen(encode_url) - (encode_cnt << 1); 
+	new = malloc(newlen + 1); 
+	assert(new != NULL); 
+	p = encode_url; 
+	while (*p != '\0') {
+		if (need_decode(p++)) {
+			char c = char_2_digit(*p) << 4; 
+			c += char_2_digit(*++p); 
+			*new++ = c; 
+			++p; 
+		} else *new++ = *p++; 
+	}
+	new[newlen] = '\0'; 
+	return new; 
+}
+int char_2_digit(char c)
+{
+	switch (c) {
+		case '0': case '1': case '2': case '3': case '4': 
+		case '5': case '6': case '7': case '8': case '9':
+			return c - '0'; 
+		case 'a': case 'b': case 'c': case 'd': case 'e': 
+		case 'f':
+			return c - 'a' + 10; 
+		case 'A': case 'B': case 'C': case 'D': case 'E':
+		case 'F':
+			return c - 'A' + 10; 
+		default:
+			abort(); 
+	}
+}
+bool need_decode(char *c)
+{
+	assert(c != NULL); 
+	if (*c == '%' && is_digit(*(c + 1)) && is_digit(*(c + 2))) 
+		return true; 
+	return false; 
 }

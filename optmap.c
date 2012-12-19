@@ -121,8 +121,7 @@ void get_val(void *arg)
 	errno = 0; 
 	char *endptr; 
 	char c = 0; 
-	if (arg == NULL) 
-		HELP_EXIT(1); 
+	if (arg == NULL) HELP_EXIT(1); 
 	val = strtol(optarg, &endptr, 10); 
 	if (errno == EINVAL || errno == ERANGE) 
 		HELP_EXIT(errno); 
