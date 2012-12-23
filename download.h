@@ -1,7 +1,7 @@
 /*
  * =====================================================================================
  *
- *       Filename:  proto.h
+ *       Filename:  download.h
  *
  *    Description:  协议相关
  *
@@ -15,9 +15,9 @@
  *
  * =====================================================================================
  */
-#ifndef PROTO_LJEBKEMW
+#ifndef  __DOWNLOAD_H
 
-#define PROTO_LJEBKEMW
+#define  __DOWNLOAD_H
 
 #include "url.h"
 typedef enum {
@@ -35,7 +35,7 @@ typedef struct _dl_t {
 	char *redict_url; 
 	char *referer; 
 	int  err_code; 
-	char *local; 
+	char *local; 		//本地文件
 	file_type_t ft; 
 	char ext[0]; 
 } dl_t;
@@ -46,4 +46,7 @@ typedef struct _proto_t {
 	dl_t *(*dl_main)(dl_t*); 
 	void (*end_fun)(dl_t*); 
 } proto_t;
-#endif /* end of include guard: PROTO_LJEBKEMW */
+
+dl_t *start_download(url_t *ut, char *orig_url); 
+void recursive_download(url_t *ut, char *orig_url); 
+#endif /* end of include guard: __DOWNLOAD_H */

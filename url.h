@@ -59,6 +59,7 @@ typedef struct _url_t {
  * *err返回错误码
  */
 url_t *url_parsed(char *url, int *err); 
+void free_url(url_t *url); 
 /*
  * 获取URL的协议
  */
@@ -72,5 +73,8 @@ char *short_hand_url(char *url);
  * 编码URL
  */
 char *encode_url(char *orig_url); 
+/*
+ * 解码URL
+ */
 char *decode_url(const char *encode_url); 
 #endif /* end of include guard: URL_1SE861HM */

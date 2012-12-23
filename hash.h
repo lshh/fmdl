@@ -55,4 +55,5 @@ typedef struct hash_tb
  bool hash_contains(hash_t *ht, const void *key); 
  bool hash_remove(hash_t *ht, const void *key); 
  void hash_clear(hash_t *ht); 
+ int string_nocase_cmp(const void *s1, const void *s2); 
 #endif /* end of include guard: HASH_T0QUF7L5 */

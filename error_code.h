@@ -26,9 +26,10 @@
 #define ERR_PIPE	0x0012		/* 收到PIPE信号 */
 #define ERR_OPTIONS	0x0013		/* 选项指定错误 */
 //URL错误码
-#define ERR_UNSUPPORT_SCHEME 0x0020
-#define ERR_SCHEME_SET_FAIL	0x0021
-#define ERR_BADURL			0x0022
+#define ERR_UNSUPPORT_SCHEME 0x0020			/* 不支持的协议 */
+#define ERR_SCHEME_SET_FAIL	0x0021			/* 添加协议头部失败 */
+#define ERR_BADURL			0x0022			/* 错误的URL */
 /* ----------调试信息打印接口---------- */
 #define DEBUGINFO(arg) 	log_debug(LOG_ERROR, arg)
+#define ERR_TIMEOUT		0x0031
 #endif /* end of include guard: ERROR_CODE_W7YVQJBN */

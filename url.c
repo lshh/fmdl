@@ -446,3 +446,19 @@ bool need_decode(char *c)
 		return true; 
 	return false; 
 }
+void free_url(url_t *url)
+{
+	assert (url != NULL); 
+
+	if (url->encode_url) free(url->encode_url); 
+	if (url->host) free(url->host); 
+	if (url->path) free(url->path); 
+	if (url->dir) free(url->dir);
+	if (url->file) free(url->file); 
+	if (url->param) free(url->param);
+	if (url->query) free(url->query); 
+	if (url->frag) free(url->frag); 
+	if (url->name) free(url->name); 
+	if (url->passwd) free(url->passwd); 
+	free(url); 
+}

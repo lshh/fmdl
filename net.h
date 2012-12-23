@@ -22,8 +22,55 @@
 #include "error_code.h"
 #include "log.h"
 
+#include <stdint.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <time.h>
+#include <netdb.h>
+
+typedef enum {
+	ONLY_IPV4 = 0x01,  /* 只使用IPv4网络 */
+	ONLY_IPV6 = 0x02, /* 只使用IPv6网络 */
+	ALL_IP = 0x04	 /* 系统自动选择网络 */
+}net_type_t; 
+/* 通用地址结构 */
+typedef struct sockaddr_storage sockaddr_t; 
 bool is_digit(char c); 
 
 bool valid_ipv6_addr(const char *s, size_t len); 
 bool valid_ipv4_addr(const char *s, size_t len); 
-#endif /* end of include guard: NET_D29XEW7D */
+/* **************处理网络连接************* */
+typedef struct _socket_t {
+	int fd; 		/* 套接字描述符 */
+	int status; 	/* 网络状态 */
+	sockaddr_t local; 	/* 本地地址 */
+	sockaddr_t remote; 	/* 远端地址 */
+	time_t tm; 			/* 网络连接创建时间 */
+	uint32_t r_bytes; 	/* 已接受的字节数 */
+	uint32_t w_bytes; 	/* 已发送的字节数 */
+} socket_t;
+#define sock_remote(sock) (sock)->remote
+#define sock_local(sock) (sock)->local 
+#define sock_read_bytes(sock) (sock)->r_bytes
+#define sock_write_bytes(sock) (sock)->r_bytes 
+#define sock_status(sock) (sock)->status
+#define set_sock_status(sock, st) (sock)->status = (st)
+socket_t *sock_open_host(const char *host, uint16_t port, net_type_t net); 
+#define sock_open_v4(h, p) sock_open_host(h, p, ONLY_IPV4)
+#define sock_open_v6(h, p) sock_open_host(h, p, ONLY_IPV6)
+#define sock_open(h, p) sock_open_host(h, p, ALL_IP)
+socket_t *sock_open_ip(sockaddr_t *addr, uint16_t port); 
+//const char *sock_status_str(socket_t *sock); 
+time_t sock_alive_time(socket_t *sock); 
+int sock_read(socket_t *sock, char *buf, size_t len); 
+int sock_write(socket_t *sock, char *buf, size_t len); 
+int sock_peek(socket_t *sock, char *buf, size_t len); 
+void sock_close(socket_t *sock); 
+
+typedef struct _cb_arg_t {
+	int cb_fd; 
+	void *cb_ext; 
+} cb_arg_t;
+int run_cb_with_timeout(int (*fun)(cb_arg_t*), cb_arg_t *arg, uint32_t to); 
+#endif

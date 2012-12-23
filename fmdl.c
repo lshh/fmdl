@@ -20,7 +20,7 @@
 #include "fmdl.h"
 #include "error_code.h"
 #include "url.h"
-#include "proto.h"
+#include "download.h"
 
 #include <stdio.h>
 #include <fcntl.h>
