@@ -49,13 +49,27 @@ enum {
 	SOCK_TIMEOUT = 0x01, 
 	SOCK_RD_ERROR, 
 	SOCK_WR_ERROR, 
-	SOCK_OK
+	SOCK_OK, 
 }; 
+enum {
+	WAIT_READ = 0x01, 
+	WAIT_WRITE = 0x02, 
+	WAIT_EXEPT = 0x04, 
+}; 
+enum {
+	FD_CAN_READ = 0x11, 
+	FD_CAN_WRITE = 0x12, 
+	FD_EXEPT = 0x14, 
+	UNEXEPT_EVENT = 0x1f
+}; 
+#define GUESS_MAX_FD 40
 static jmp_buf env; 
+static int guess_max_fd(int fd); 
 static void sig_callback(int sig); 
 static int bind_local(int fd, const char *ip); 
 static int connect_timeout(int fd, sockaddr_t *sa, uint32_t to); 
 static int conn_cb(cb_arg_t *arg); 
+int fd_select(int fd, int event, uint32_t to); 
 bool valid_ipv4_addr(const char *s, size_t len)
 {
 	assert(s != NULL); 
@@ -153,7 +167,7 @@ bool is_digit(char c)
 socket_t *sock_open_host(const char *host, uint16_t port, net_type_t net)
 {
 	assert(host != NULL && port >= 0); 
-	addrlists_t *al = lookup_host(host); 
+	addrlists_t *al = lookup_host(host, !options.nodnscache); 
 	socket_t *sock; 
 	int cnt; 
 	sockaddr_t *addr; 
@@ -162,17 +176,21 @@ socket_t *sock_open_host(const char *host, uint16_t port, net_type_t net)
 		return NULL; 
 	}
 	int i = 0; 
+	cnt = al->total; 
 	for (; i < cnt; i++) {
 		addr = (sockaddr_t *) addrlist_pos(al, i); 
 		sock = sock_open_ip(addr, port); 
-		if (sock == NULL) 
-			continue; 
-		return sock; 
+		if (sock != NULL) {
+			addrlist_release(al); 
+			return sock; 
+		}
 	}
 	if (i == cnt) {
 		log_debug(LOG_ERROR, "Can`t connect to host(%s)", host); 
+		addrlist_release(al); 
 		return NULL; 
 	}
+	abort(); 
 }
 socket_t *sock_open_ip(sockaddr_t *addr, uint16_t port)
 {
@@ -232,7 +250,7 @@ int bind_local(int fd, const char *ip)
 {
 #define BIND_ADDR(net, type, v) do{\
 	type v; \
-	(v).v##_port = hntos(0); \
+	(v).v##_port = htons(0); \
 	(v).v##_family = net; \
 	inet_pton((v).v##_family, ip, (void*)&(v).v##_addr); \
 	ret = bind(fd, (SOCKADDR*)&v, sizeof(v)); \
@@ -266,7 +284,7 @@ int conn_cb(cb_arg_t *arg)
 {
 	int fd = arg->cb_fd; 
 	sockaddr_t *sa = (sockaddr_t *)arg->cb_ext; 
-	ret = connect(fd, (SOCKADDR*)sa, sizeof(SOCKADDR)); 
+	int ret = connect(fd, (SOCKADDR*)sa, sizeof(SOCKADDR)); 
 	if (ret != 0) return NET_CONN_FAIL; 
 	return NO_ERROR; 
 }
@@ -301,7 +319,7 @@ void sock_close(socket_t *sock)
 {
 	assert(sock != NULL); 
 	int i = 3; 
-	while (i--) if (close(fd) == 0) break; 
+	while (i--) if (close(sock->fd) == 0) break; 
 	free (sock); 
 }
 int sock_read(socket_t *sock, char *buf, size_t len)
@@ -355,4 +373,39 @@ int sock_peek(socket_t *sock, char *buf, size_t len)
 	}
 	ret = recv(sock->fd, buf, len, MSG_PEEK); 
 	return ret; 
+}
+int fd_select(int fd, int event, uint32_t to)
+{
+	fd_set set; 
+	FD_ZERO(&set); 
+	FD_SET(fd, &set); 
+	int ret; 
+	to = to == 0 ? 0xffffffff : to; 
+	struct timeval tv = {to, 0}; 
+	switch (event) {
+		case WAIT_READ:
+			ret = select(guess_max_fd(fd), &set, NULL, NULL, &tv); 
+			if (ret == 0) return SOCK_TIMEOUT; 
+			FD_SET(fd, &set); 
+			return FD_CAN_READ; 
+		case WAIT_WRITE:
+			ret = select(guess_max_fd(fd), NULL, &set, NULL, &tv); 
+			if (ret == 0) return SOCK_TIMEOUT; 
+			FD_SET(fd, &set); 
+			return FD_CAN_WRITE; 
+		case WAIT_EXEPT:
+			ret = select(guess_max_fd(fd), NULL, NULL, &set, &tv); 
+			if (ret == 0) return SOCK_TIMEOUT; 
+			FD_SET(fd, &set); 
+			return FD_EXEPT; 
+		default:
+			return UNEXEPT_EVENT; 
+	}
+}
+int guess_max_fd(int fd)
+{
+	static int guess_max = GUESS_MAX_FD; 
+	if (fd + 10 > guess_max) 
+		guess_max = guess_max + 10; 
+	return guess_max; 
 }

@@ -32,4 +32,5 @@
 /* ----------调试信息打印接口---------- */
 #define DEBUGINFO(arg) 	log_debug(LOG_ERROR, arg)
 #define ERR_TIMEOUT		0x0031
+#define ERR_NET			0x0032
 #endif /* end of include guard: ERROR_CODE_W7YVQJBN */
