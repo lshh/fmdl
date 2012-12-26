@@ -72,7 +72,7 @@ struct fmdl_option
 	bool passive; 				//是否启用passive模式
 	char *ftp_user; 			//FTP 用户名
 	char *ftp_passwd; 			//FTP 密码
-	bool ftp_glob; 				//是否使用通配符
+//	bool ftp_glob; 				//是否使用通配符
 	//递归下载选项
 	bool	recursive; 			//是否递归下载
 	int 	max_level; 			//最大递归层级

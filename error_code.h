@@ -33,4 +33,5 @@
 #define DEBUGINFO(arg) 	log_debug(LOG_ERROR, arg)
 #define ERR_TIMEOUT		0x0031
 #define ERR_NET			0x0032
+#define FTP_ERR			0x0033
 #endif /* end of include guard: ERROR_CODE_W7YVQJBN */

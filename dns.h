@@ -37,7 +37,11 @@ sockaddr_t *addrlist_pos(const addrlists_t *al, int pos);
 addrlists_t *addrlist_dup(addrlists_t *al); 
 bool addrlist_alive(const addrlists_t *al); 
 uint32_t addrlist_total(const addrlists_t *al); 
-void addrlist_release(addrlists_t *al); 
 void addrlist_referer(addrlists_t *al); 
 addrlists_t *lookup_host(const char *host, bool cache); 
+/*
+ * 调用lookup_host函数后返回的addrlists_t 结构指针应该调用addrlist_release函数释放, 
+ * 其他方式都是不安全的
+ */
+void addrlist_release(addrlists_t *al); 
 #endif /* end of include guard: DNS_NZTNTPVH */

@@ -80,7 +80,7 @@ struct options_map optmap[] = {
 	{OPT_BOOL, set_bool, &(options.passive)}, 
 	{OPT_LINE, get_string, &(options.ftp_user)}, 
 	{OPT_LINE, get_string, &(options.ftp_passwd)}, 
-	{OPT_BOOL, set_bool, &(options.ftp_glob)}, 
+//	{OPT_BOOL, set_bool, &(options.ftp_glob)}, 
 	{OPT_BOOL, set_bool, &(options.recursive)}, 
 	{OPT_VALUE, get_val, &(options.max_level)}, 
 	{OPT_BOOL, set_bool, &(options.delete_after)}, 
@@ -143,7 +143,7 @@ void get_val(void *arg)
 		}
 		return; 
 	}
-	*(long*)arg = val; 
+	*(unsigned long*)arg = val; 
 }
 void get_multi_string(void *arg)
 {

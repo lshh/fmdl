@@ -89,7 +89,7 @@ int main(int argc,  char *argv[])
 		{"no-passive", 0, NULL, 0}, 
 		{"ftp-user", 1, NULL, 0}, 
 		{"ftp-passwd", 1, NULL, 0}, 
-		{"ftp-global", 0, NULL, 0}, 
+//		{"ftp-global", 0, NULL, 0}, 
 		//递归
 		{"recursive", 0, NULL, 0}, 
 		{"limit-level", 1, NULL, 0}, 

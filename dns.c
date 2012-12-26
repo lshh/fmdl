@@ -243,6 +243,15 @@ void dns_store(const char *host, addrlists_t *al)
 		addrlist_release(old); 
 		return ; 
 	}
-	DNS_HASH_PUT(host, al);
+	/*
+	 * XXXX此处调用addrlist_dup是必须的XXXX
+	 * 假设直接以al为参数，则此时al->refcnt
+	 * 等于0, 如果下次调用dns_query查询到此
+	 * 地址列表，用户再使用lookup_host后调用
+	 * addrlist_release释放则此时内存会被释放，
+	 * 但是哈希列表中将依然存有到此内存的地址，
+	 * 再次调用dns_query将可能产生严重错误!
+	 */
+	DNS_HASH_PUT(host, addrlist_dup(al));
 }
 #undef ENSURE_DNS_MAP_EXISTS

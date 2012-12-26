@@ -44,13 +44,6 @@ enum {
 	NET_CONN_FAIL, 
 	NET_BAD_IP
 }; 
-/* 套接字状态 */
-enum {
-	SOCK_TIMEOUT = 0x01, 
-	SOCK_RD_ERROR, 
-	SOCK_WR_ERROR, 
-	SOCK_OK, 
-}; 
 enum {
 	WAIT_READ = 0x01, 
 	WAIT_WRITE = 0x02, 
@@ -69,7 +62,8 @@ static void sig_callback(int sig);
 static int bind_local(int fd, const char *ip); 
 static int connect_timeout(int fd, sockaddr_t *sa, uint32_t to); 
 static int conn_cb(cb_arg_t *arg); 
-int fd_select(int fd, int event, uint32_t to); 
+static int fd_select(int fd, int event, uint32_t to); 
+
 bool valid_ipv4_addr(const char *s, size_t len)
 {
 	assert(s != NULL); 
@@ -164,7 +158,7 @@ bool is_digit(char c)
 	}
 	abort(); 
 }
-socket_t *sock_open_host(const char *host, uint16_t port, net_type_t net)
+socket_t *sock_open_host(const char *host, uint16_t port) 
 {
 	assert(host != NULL && port >= 0); 
 	addrlists_t *al = lookup_host(host, !options.nodnscache); 
@@ -179,6 +173,7 @@ socket_t *sock_open_host(const char *host, uint16_t port, net_type_t net)
 	cnt = al->total; 
 	for (; i < cnt; i++) {
 		addr = (sockaddr_t *) addrlist_pos(al, i); 
+		if (addr == NULL) continue; 
 		sock = sock_open_ip(addr, port); 
 		if (sock != NULL) {
 			addrlist_release(al); 
@@ -237,9 +232,11 @@ socket_t *sock_open_ip(sockaddr_t *addr, uint16_t port)
 	socket_t *sock; 
 	switch (addr->ss_family) {
 		case AF_INET:
+			if (options.only_ipv6) break; 
 			TRY_CONN(struct sockaddr_in, sin); 
 			break; 
 		case AF_INET6:
+			if (options.only_ipv4) break; 
 			TRY_CONN(struct sockaddr_in6, sin6); 
 			break; 
 	}

@@ -41,6 +41,13 @@ bool is_digit(char c);
 bool valid_ipv6_addr(const char *s, size_t len); 
 bool valid_ipv4_addr(const char *s, size_t len); 
 /* **************处理网络连接************* */
+/* 套接字状态 */
+enum {
+	SOCK_TIMEOUT = 0x01, 
+	SOCK_RD_ERROR, 
+	SOCK_WR_ERROR, 
+	SOCK_OK 
+}; 
 typedef struct _socket_t {
 	int fd; 		/* 套接字描述符 */
 	int status; 	/* 网络状态 */
@@ -50,16 +57,13 @@ typedef struct _socket_t {
 	uint32_t r_bytes; 	/* 已接受的字节数 */
 	uint32_t w_bytes; 	/* 已发送的字节数 */
 } socket_t;
-#define sock_remote(sock) (sock)->remote
-#define sock_local(sock) (sock)->local 
+#define sock_remote(sock) &(sock)->remote
+#define sock_local(sock) &(sock)->local 
 #define sock_read_bytes(sock) (sock)->r_bytes
 #define sock_write_bytes(sock) (sock)->r_bytes 
 #define sock_status(sock) (sock)->status
 #define set_sock_status(sock, st) (sock)->status = (st)
-socket_t *sock_open_host(const char *host, uint16_t port, net_type_t net); 
-#define sock_open_v4(h, p) sock_open_host(h, p, ONLY_IPV4)
-#define sock_open_v6(h, p) sock_open_host(h, p, ONLY_IPV6)
-#define sock_open(h, p) sock_open_host(h, p, ALL_IP)
+socket_t *sock_open_host(const char *host, uint16_t port); 
 socket_t *sock_open_ip(sockaddr_t *addr, uint16_t port); 
 //const char *sock_status_str(socket_t *sock); 
 time_t sock_alive_time(socket_t *sock); 
