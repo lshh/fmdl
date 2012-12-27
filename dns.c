@@ -220,7 +220,7 @@ int getaddrinfo_cb(cb_arg_t *arg)
 }
 addrlists_t *dns_query(const char *host) 
 {
-	assert(host = NULL); 
+	assert(host != NULL); 
 	
 	addrlists_t *al; 
 	ENSURE_DNS_MAP_EXISTS; 

@@ -26,6 +26,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include <assert.h>
 
 #define FTP_CMD_BUF 128
@@ -33,6 +34,8 @@
 static bool ftp_login(ftp_t *f, const char *u, const char *p); 
 static int ftp_pasv(ftp_t *f); 
 static int ftp_epsv(ftp_t *f); 
+static int ftp_data_socket(ftp_t *f, sockaddr_t *addr); 
+static int ftp_accept(ftp_t *f); 
 ftp_t *ftp_new(const char *user, const char *passwd)
 {
 	ftp_t *new = calloc(1, sizeof(ftp_t)); 
@@ -51,8 +54,9 @@ bool ftp_connect(ftp_t *ftp, const char *host, const uint16_t port)
 	log_debug(LOG_VERBOS, "Connect to %s SUCCESS!\n", host); 
 	if (ftp->conn) {
 		sock_close(ftp->conn); 
-		ftp->conn = sock; 
+		ftp->conn = NULL; 
 	}
+	ftp->conn = sock; 
 	if (!ftp_login(ftp, ftp->user, ftp->passwd)) {
 		log_printf(LOG_ERROR, "FTP: login Failed!(Server response:%s)\n", ftp_mesg(ftp)); 
 		return false; 
@@ -79,13 +83,17 @@ bool ftp_login(ftp_t *f, const char *u, const char *p)
 {
 	assert (f != NULL); 
 	assert (u != NULL && p != NULL); 
+	/* 等待服务器信息 */
+	ftp_wait_reply(f); 
+
 	ftp_command(f, "USER %s", u); 
 	ftp_wait_reply(f); 
 	if (ftp_status(f)/100 != 2) {
 		if (ftp_status(f)/100 == 3) {
 			ftp_command(f, "PASS %s", p);
 			ftp_wait_reply(f); 
-			if (ftp_status(f) != 2) return false; 
+			if (ftp_status(f)/100 != 2) return false; 
+			return true; 
 		} else 
 			return false; 
 	}
@@ -105,29 +113,21 @@ void ftp_wait_reply(ftp_t *ftp)
 {
 	char *msg; 
 	size_t rnt; 
-	size_t total = 0; 
 	if (ftp->last_reply == NULL) {
 		ftp->reply_len = DEF_BUF; 
-		ftp->last_reply = malloc (ftp->reply_len + 1); 
+		ftp->last_reply = malloc(ftp->reply_len + 1); 
 		assert (ftp->last_reply != NULL); 
 	} 
 	msg = ftp->last_reply; 
-	while ((rnt = sock_read(ftp->conn, msg + total, ftp->reply_len - total))) {
-		if (rnt + total > ftp->reply_len -(DEF_BUF >> 2)) {
-			ftp->reply_len += DEF_BUF; 
-			ftp->last_reply = realloc(ftp->last_reply, ftp->reply_len); 
-			msg = ftp->last_reply; 
-			assert (msg != NULL); 
-		}
-		total += rnt; 
-	}
+	rnt = sock_read(ftp->conn, ftp->last_reply, ftp->reply_len); 
 	if (rnt == -1) {
 		log_debug(LOG_ERROR, "socket read ERROR!(%s)\n", strerror(errno)); 
 		return; 
 	}
-	msg[total] = '\0'; 
-	if (options.print_response)
-		log_printf(LOG_VERBOS, "%s", msg); 
+	msg[rnt] = '\0'; 
+	if (options.print_response) 
+		log_printf(LOG_VERBOS, "%s", ftp_mesg(ftp)); 
+
 	sscanf(msg, "%d", &ftp->status); 
 }
 int ftp_status(ftp_t *ftp)
@@ -157,7 +157,10 @@ int ftp_data(ftp_t *ftp, bool passive)
 {
 	assert (ftp != NULL); 
 	int err = NO_ERROR; 
-	if (ftp->data != NULL) sock_close(ftp->data); 
+	if (ftp->data != NULL) {
+		sock_close(ftp->data); 
+		ftp->data = NULL; 
+	}
 		/* 进入被动模式 */
 	sockaddr_t *addr = sock_remote(ftp->conn); 
 	switch (addr->ss_family) {
@@ -167,14 +170,16 @@ int ftp_data(ftp_t *ftp, bool passive)
 					log_printf(LOG_WARNING, "Server don`t support PASSIVE mode! Try PORT\n"); 
 					goto PORT; 
 				}
+				return NO_ERROR; 
 			}
 			break; 
 		case AF_INET6:
 			if (passive) {
 				if (ftp_epsv(ftp) != NO_ERROR) {
-					log_printf(LOG_WARNING, "Server don`t support PASSIVE mode! Try EPSV\n"); 
+					log_printf(LOG_WARNING, "Server don`t support PASSIVE mode! Try EPRT\n"); 
 					goto PORT; 
 				}
+				return NO_ERROR; 
 			}
 			break; 
 		default:
@@ -188,24 +193,39 @@ PORT:
 }
 int ftp_pasv(ftp_t *f)
 {
-	assert (f != NULL); 
-	char *reply = ftp_mesg(f); 
+	assert (f != NULL && f->conn != NULL); 
+	char *reply; 
 	int info[6] = {0}; 
 	char ip[16]; 
 	uint16_t port; 
+	bool ok = false; 
 	int i = 0; 
+
+	if (f->data != NULL) {
+		sock_close(f->data); 
+		f->data = NULL; 
+	}
+
+	ftp_command(f, "PASV"); 
+	ftp_wait_reply(f); 
+	if (ftp_status(f)/100 != 2) return FTP_ERR; 
+
+	reply = ftp_mesg(f); 
+
 	for (; reply[i]; i++) {
 		if (sscanf(reply + i, "%i,%i,%i,%i,%i,%i", 
 					info, info + 1, info + 2, info + 3, 
 					info + 4, info + 5) == 6) {
 			sprintf(ip, "%d.%d.%d.%d", info[0], info[1], 
 					info[2], info[3]); 
-			port = (info[4] << 4) + info[5]; 
+			port = (info[4] << 8) + info[5]; 
 			assert (port >= 0); 
+			ok = true; 
 			break; 
-		}
-		return FTP_ERR; 
+		} 
 	}
+
+	if (!ok) return FTP_ERR; 
 
 	{
 		socket_t *data; 
@@ -213,6 +233,7 @@ int ftp_pasv(ftp_t *f)
 		addr.sin_family = AF_INET; 
 		inet_pton(AF_INET, ip, &addr.sin_addr); 
 		data = sock_open_ip((sockaddr_t *)&addr, port); 
+		if (data == NULL) return FTP_ERR; 
 		f->data = data; 
 	}
 	return NO_ERROR; 
@@ -224,7 +245,7 @@ int ftp_port(ftp_t *f)
 	ftp_command(f, cmd" %s", buf); \
 	ftp_wait_reply(f); \
 	if (ftp_status(f)/100 != 2) {\
-		log_printf(LOG_ERROR, "FTP PORT command FAILED!(server response:%s)",\
+		log_printf(LOG_ERROR, "FTP PORT command FAILED!(server response: %s )",\
 				ftp_mesg(f)); \
 		return FTP_ERR; \
 	}\
@@ -238,8 +259,9 @@ int ftp_port(ftp_t *f)
 	assert (f != NULL); 
 	char buf[DEF_BUF + 1] = {0}; 
 	uint16_t port; 
-	if (ftp_data_socket(f, sock_local(f->conn)) != NO_ERROR) return FTP_ERR; 
 	int af; 
+	if (ftp_data_socket(f, sock_local(f->conn)) != NO_ERROR) 
+		return FTP_ERR; 
 	sockaddr_t *remote = sock_remote(f->conn); 
 	af = remote->ss_family; 
 	switch (af) {
@@ -256,7 +278,12 @@ int ftp_port(ftp_t *f)
 				inet_ntop(sin->sin_family, &sin->sin_addr, buf, DEF_BUF); 
 				p = buf; 
 				len = strlen(buf); 
-				while (*p) if (*p == '.') *p++ = ','; 
+				while (*p) {
+					if (*p == '.'){
+						*p = ','; 
+					}	
+					p++; 
+				}
 				sprintf(buf + len, ",%d,%d", port >> 8, port & 0x00ff); 
 				FTP_PORT("PORT"); 
 			}
@@ -266,7 +293,7 @@ int ftp_port(ftp_t *f)
 			{
 				sockaddr_t *addr = sock_local(f->conn); 
 				char ip[128] = {0}; 
-				int af; 
+				int af = addr->ss_family == AF_INET ? 1 : 2; 
 				if (addr->ss_family == AF_INET) 
 					ADDR_TRANSPORT(struct sockaddr_in, sin); 
 				if (addr->ss_family == AF_INET6)
@@ -281,4 +308,91 @@ int ftp_port(ftp_t *f)
 	return ftp_accept(f); 
 #undef FTP_PORT
 #undef ADDR_TRANSPORT
+}
+int ftp_data_socket(ftp_t *f, sockaddr_t *addr)
+{
+#define CREAT_SOCKET(type, v) do {\
+	type v = *(type *)addr; \
+	v.v##_port = htons(ntohs(v.v##_port) + 1); \
+	socklen_t l = sizeof(v); \
+	ret = socket(v.v##_family, SOCK_STREAM, 0); \
+	if (ret < 0) return FTP_ERR; \
+	ret = bind(ret, (struct sockaddr*)&v, l); \
+	listen(ret, 1); \
+	if (ret < 0) return FTP_ERR; \
+	sock->fd = ret; \
+	sock->tm = time(NULL); \
+	sock->status = NO_ERROR; \
+	sock->local = *((sockaddr_t*)&v); \
+	f->data = sock; \
+} while (0)
+	assert (f != NULL && addr != NULL); 
+	int ret; 
+	if (f->data != NULL) {
+		sock_close(f->data); 
+		f->data = NULL; 
+	}
+	socket_t *sock = calloc(1, sizeof(socket_t)); 
+
+	switch (addr->ss_family) {
+		case AF_INET:
+			CREAT_SOCKET(struct sockaddr_in, sin); 
+			break; 
+		case AF_INET6:
+			CREAT_SOCKET(struct sockaddr_in6, sin6); 
+			break; 
+		default:
+			return FTP_ERR; 
+	}
+	return NO_ERROR; 
+#undef CREAT_SOCKET
+}
+int ftp_accept(ftp_t *f)
+{
+	assert (f != NULL && f->data != NULL); 
+	/*
+	 * 对于数据连接程序似乎可以不用绑定到特定地址？
+	 */
+	socklen_t len; 
+	int ret; 
+	ret = accept(f->data->fd, (struct sockaddr *)sock_remote(f->data), &len); 
+	if (ret < 0) return FTP_ERR; 
+	log_debug(LOG_VERBOS, "Accept connection\n"); 
+	return NO_ERROR; 
+}
+int ftp_epsv(ftp_t *f)
+{
+	assert (f != NULL && f->conn != NULL); 
+
+	if (f->data != NULL) {
+		sock_close(f->data); 
+		f->data = NULL; 
+	}
+	ftp_command(f, "EPSV %s", (sock_local(f->conn))->ss_family == AF_INET? "1":"2"); 
+	ftp_wait_reply(f); 
+	if (ftp_status(f)/100 != 2) {
+		return FTP_ERR; 
+	}
+	char *reply = ftp_mesg(f); 
+	char *p = strchr(reply, '('); 
+	char delim; 
+
+	if (p == NULL) return FTP_ERR; 
+	delim = *++p; 
+	if (delim < 33 || delim > 126) return FTP_ERR; 
+
+	p++; 
+	int i = 0; 
+	for (; i < 2; i++) {
+		if (*p++ != delim) return FTP_ERR; 
+	}
+	
+	/* 解析端口号 */
+	uint16_t port; 
+	while (isdigit(*p)) {
+		port = port*10 + (*p++ - '\0'); 
+	}
+	f->data = sock_open_ip(sock_remote(f->conn), port); 
+	if (f->data == NULL) return FTP_ERR; 
+	return NO_ERROR; 
 }

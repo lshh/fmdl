@@ -26,6 +26,7 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <time.h>
+#include <net/if.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,6 +35,7 @@
 #include <ctype.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 /* 网络状态码 */
@@ -190,6 +192,8 @@ socket_t *sock_open_host(const char *host, uint16_t port)
 socket_t *sock_open_ip(sockaddr_t *addr, uint16_t port)
 {
 #define TRY_CONN(type, v)	do{\
+	sock = malloc(sizeof(socket_t)); \
+	assert(sock != NULL); \
 	type *v = (type*)addr; \
 	(v)->v##_port = htons(port); \
 	fd = socket((v)->v##_family, SOCK_STREAM, 0); \
@@ -211,17 +215,16 @@ socket_t *sock_open_ip(sockaddr_t *addr, uint16_t port)
 	int ret = connect_timeout(fd, addr, options.connect_timeout); \
 	if (ret != NET_OK) {\
 		close(fd); \
+		free(sock); \
 		log_debug(LOG_ERROR, "Can`t connect to %s:%d\n", ip, port); \
 		return NULL; \
 	}\
-	socklen_t len; \
-	sock = malloc(sizeof(socket_t)); \
-	assert(sock != NULL); \
+	socklen_t l; \
 	sock->fd = fd; \
 	sock->status = NET_OK; \
 	sock->remote = *addr; \
-	memset(&sock->local, 0, sizeof(sockaddr_t)); \
-	getsockname(addr->ss_family, (SOCKADDR*)&sock->local, &len); \
+	getpeername(fd, (SOCKADDR *)&sock->remote, &l); \
+	getsockname(fd, (SOCKADDR *)&sock->local, &l); \
 	sock->tm = time(NULL); \
 	sock->r_bytes = sock->w_bytes = 0; \
 	return sock; \
@@ -283,7 +286,7 @@ int conn_cb(cb_arg_t *arg)
 	sockaddr_t *sa = (sockaddr_t *)arg->cb_ext; 
 	int ret = connect(fd, (SOCKADDR*)sa, sizeof(SOCKADDR)); 
 	if (ret != 0) return NET_CONN_FAIL; 
-	return NO_ERROR; 
+	return NO_ERROR;
 }
 int run_cb_with_timeout(int (*fun)(cb_arg_t*), cb_arg_t *arg, uint32_t to) 
 {
@@ -405,4 +408,44 @@ int guess_max_fd(int fd)
 	if (fd + 10 > guess_max) 
 		guess_max = guess_max + 10; 
 	return guess_max; 
+}
+const char *get_sock_ip(const sockaddr_t *addr)
+{
+#define TRANSPORT(type, v) do {\
+	type *v = (type *) addr; \
+	inet_ntop(v->v##_family, &(v)->v##_addr, ip, 127); \
+} while (0)
+	assert (addr != NULL);
+	static char ip[128]; 
+	switch (addr->ss_family) {
+		case AF_INET:
+			TRANSPORT(struct sockaddr_in, sin); 
+			break; 
+		case AF_INET6:
+			TRANSPORT(struct sockaddr_in6, sin6); 
+			break; 
+	}
+	ip[strlen(ip)] = '\0'; 
+	return ip; 
+#undef TRANSPORT
+}
+const char *get_sock_port(const sockaddr_t *addr) 
+{
+#define TRANS(type, v) do {\
+	type *v = (type *) addr; \
+	sprintf(port, "%d", ntohs(v->v##_port)); \
+} while (0)
+	assert (addr != NULL);
+	static char port[6] = {0}; 
+	switch (addr->ss_family) {
+		case AF_INET:
+			TRANS(struct sockaddr_in, sin);
+			break; 
+		case AF_INET6:
+			TRANS(struct sockaddr_in6, sin6); 
+			break; 
+	}
+	port[strlen(port)] = '\0'; 
+	return port; 
+#undef TRANS
 }

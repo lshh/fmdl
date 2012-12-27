@@ -51,14 +51,14 @@ enum {
 typedef struct _socket_t {
 	int fd; 		/* 套接字描述符 */
 	int status; 	/* 网络状态 */
-	sockaddr_t local; 	/* 本地地址 */
 	sockaddr_t remote; 	/* 远端地址 */
+	sockaddr_t local; 
 	time_t tm; 			/* 网络连接创建时间 */
 	uint32_t r_bytes; 	/* 已接受的字节数 */
 	uint32_t w_bytes; 	/* 已发送的字节数 */
 } socket_t;
 #define sock_remote(sock) &(sock)->remote
-#define sock_local(sock) &(sock)->local 
+#define sock_local(sock) &(sock)->local
 #define sock_read_bytes(sock) (sock)->r_bytes
 #define sock_write_bytes(sock) (sock)->r_bytes 
 #define sock_status(sock) (sock)->status
@@ -70,6 +70,8 @@ time_t sock_alive_time(socket_t *sock);
 int sock_read(socket_t *sock, char *buf, size_t len); 
 int sock_write(socket_t *sock, char *buf, size_t len); 
 int sock_peek(socket_t *sock, char *buf, size_t len); 
+const char *get_sock_ip(const sockaddr_t *addr); 
+const char *get_sock_port(const sockaddr_t *addr); 
 void sock_close(socket_t *sock); 
 
 typedef struct _cb_arg_t {
