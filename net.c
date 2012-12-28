@@ -329,7 +329,7 @@ int sock_read(socket_t *sock, char *buf, size_t len)
 	int ret; 
 	if (sock->fd < 0) return -1; 
 	ret = fd_select(sock->fd, WAIT_READ, options.read_timeout); 
-	if (ret != FD_CAN_READ) {
+	if (ret == SOCK_TIMEOUT) {
 		sock->status = SOCK_TIMEOUT; 
 		return -1; 
 	}
@@ -348,7 +348,7 @@ int sock_write(socket_t *sock, char *buf, size_t len)
 	int ret; 
 	if (sock->fd < 0) return -1; 
 	ret = fd_select(sock->fd, WAIT_WRITE, 0); 
-	if (ret != FD_CAN_WRITE) {
+	if (ret == SOCK_TIMEOUT) {
 		sock->status = SOCK_TIMEOUT; 
 		return -1; 
 	}
@@ -367,7 +367,7 @@ int sock_peek(socket_t *sock, char *buf, size_t len)
 	int ret; 
 	if (sock->fd < 0) return -1; 
 	ret = fd_select(sock->fd, WAIT_READ, options.read_timeout); 
-	if (ret != FD_CAN_READ) {
+	if (ret == SOCK_TIMEOUT) {
 		sock->status = SOCK_TIMEOUT; 
 		return -1; 
 	}

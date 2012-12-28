@@ -77,6 +77,7 @@ static bool need_encode(char *c);
 static bool need_decode(char *c); 
 static void get_dir_file(const char *path, char **dir, char **file); 
 static void get_name_passwd(const char *s, size_t l, char **n, char **p); 
+static char *simplify_path(scheme_t scheme, char *path);
 
 scheme_t url_scheme(char *url)
 {
@@ -119,7 +120,7 @@ char *short_hand_url(char *url)
 		return new; 
 	}
 	//添加ftp://
-	len = strlen(url) + strlen("ftp://"); 
+	len = strlen(url) + strlen("ftp://") + 1; /* 多加1为了标识FTP相对地址的情况 */
 	new = malloc(len + 1);
 	sprintf(new, "ftp://%s", url); 
 	//处理':'字符
@@ -137,7 +138,14 @@ char *short_hand_url(char *url)
 		char *b = p + 1; 
 		while (*b) *p++ = *b++; 
 	*p = '\0'; 
-	} else *p = '/'; 
+	} else {
+		/* 地址为相对地址 */
+		char *p1 = strchr(url, sep); 
+		*p++ = '/'; 
+		*p++ = '/'; 
+		++p1; 
+		while (*p1) *p++ = *p1++; 
+	}
 	return new; 
 }
 url_t *url_parsed(char *url, int *err)
@@ -248,6 +256,7 @@ END:
 	ret->port = port; 
 	ret->scheme = scheme; 
 	ret->path = path_b == NULL?strdup("/"):strndup(path_b, path_e - path_b);
+	ret->path = simplify_path(scheme, ret->path); 
 	get_dir_file(ret->path, &(ret->dir), &(ret->file)); 
 	ret->param = param_b == NULL?param_b:strndup(param_b, param_e - param_b); 
 	ret->query = query_b == NULL?query_b:strndup(query_b, query_e - query_b); 
@@ -264,10 +273,12 @@ ERROR:
 	free(ret); 
 	return (url_t*)NULL; 
 }
+
 uint16_t default_scheme_port(scheme_t scheme)
 {
 	return support_proto[scheme].port; 
 }
+
 char *skip_scheme(const char *url)
 {
 	assert(url != NULL); 
@@ -277,6 +288,7 @@ char *skip_scheme(const char *url)
 	if (!p) return NULL;
 	return p + 3; 
 }
+
 char *skip_user_info(const char *url, char **b, char **e)
 {
 	assert(url != NULL); 
@@ -350,19 +362,24 @@ void  get_dir_file(const char *path, char **dir, char **file)
 	const char *p = path; 
 	char sep = '/'; 
 	char *dir_b = NULL, *dir_e = NULL; 
-	char *file_b = NULL, *file_e = NULL; 
+	char *file_b = NULL; 
 	file_b = strrchr(p, sep); 
-	if (file_b == NULL) return; 
-	if (*++file_b == '\0') {
-		*file = NULL; 
-		*dir = strdup(path); 
+	if (file_b == NULL) {
+		*file = strdup(path); 
+		*dir = ""; 
 		return; 
 	}
-	file_e = file_b + strlen(file_b); 
-	dir_e = file_b; 
+	if (*++file_b == '\0') {
+		*file = ""; 
+		dir_e = file_b; 
+		dir_b = path; 
+		*dir = strndup(dir_b, dir_e); 
+		return; 
+	}
 	dir_b = path; 
-	*dir = strndup(dir_b, dir_e - dir_b); 
-	*file = strndup(file_b, file_e - file_b); 
+	dir_e = file_b; 
+	*dir = strndup(dir_b, dir_e); 
+	*file = strdup(file_b); 
 }
 void get_name_passwd(const char *s, size_t l, char **n, char **p) 
 {
@@ -446,6 +463,7 @@ bool need_decode(char *c)
 		return true; 
 	return false; 
 }
+
 void free_url(url_t *url)
 {
 	assert (url != NULL); 
@@ -461,4 +479,18 @@ void free_url(url_t *url)
 	if (url->name) free(url->name); 
 	if (url->passwd) free(url->passwd); 
 	free(url); 
+}
+
+char *simplify_path(scheme_t scheme, char *path)
+{
+	assert (path != NULL); 
+	char *h, *t; 
+	h = t = path; 
+	if (*h == '/' && *(h + 1) == '/' && scheme == SCHEME_FTP) {
+		/* FTP 相对地址 */
+		h += 2; 
+		while (*h) *t++ = *h++; 
+		*t = '\0'; 
+	}
+	return path; 
 }

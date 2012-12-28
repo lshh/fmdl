@@ -106,6 +106,7 @@ int ftp_command(ftp_t *ftp, char *fmt, ...)
 	va_list args; 
 	va_start(args, fmt); 
 	vsnprintf(buf, FTP_CMD_BUF, fmt, args); 
+	va_end(args); 
 	strcat(buf, "\r\n"); 
 	return sock_write(ftp->conn, buf, strlen(buf)); 
 }
@@ -161,7 +162,6 @@ int ftp_data(ftp_t *ftp, bool passive)
 		sock_close(ftp->data); 
 		ftp->data = NULL; 
 	}
-		/* 进入被动模式 */
 	sockaddr_t *addr = sock_remote(ftp->conn); 
 	switch (addr->ss_family) {
 		case AF_INET:
@@ -350,16 +350,16 @@ int ftp_data_socket(ftp_t *f, sockaddr_t *addr)
 int ftp_accept(ftp_t *f)
 {
 	assert (f != NULL && f->data != NULL); 
-	/*
-	 * 对于数据连接程序似乎可以不用绑定到特定地址？
-	 */
+
 	socklen_t len; 
 	int ret; 
 	ret = accept(f->data->fd, (struct sockaddr *)sock_remote(f->data), &len); 
 	if (ret < 0) return FTP_ERR; 
+
 	log_debug(LOG_VERBOS, "Accept connection\n"); 
 	return NO_ERROR; 
 }
+
 int ftp_epsv(ftp_t *f)
 {
 	assert (f != NULL && f->conn != NULL); 
@@ -373,6 +373,7 @@ int ftp_epsv(ftp_t *f)
 	if (ftp_status(f)/100 != 2) {
 		return FTP_ERR; 
 	}
+
 	char *reply = ftp_mesg(f); 
 	char *p = strchr(reply, '('); 
 	char delim; 
@@ -395,4 +396,115 @@ int ftp_epsv(ftp_t *f)
 	f->data = sock_open_ip(sock_remote(f->conn), port); 
 	if (f->data == NULL) return FTP_ERR; 
 	return NO_ERROR; 
+}
+
+long long int ftp_size(ftp_t *f, const char *file, int max_redir)
+{
+	assert (f != NULL && f->conn != NULL); 
+	assert (file != NULL); 
+	char *pfile = strdup(file); 
+	int status; 
+	long long size; 
+LINK:
+	/*
+	 * 首先使用SIZE命令
+	 */
+	ftp_command(f, "SIZE %s", pfile); 
+	ftp_wait_reply(f); 
+
+	status = ftp_status(f)/100; 
+	if (status == 2) {
+		sscanf (ftp_mesg(f), "%*i %lld", &size); 
+		return size; 
+	} else if (status == 5) {
+		/*
+		 * 未找到文件
+		 */
+		return -1; 
+	}
+	if (max_redir < 0) {
+		log_printf(LOG_ERROR, "Too many redirect in FTP!\n"); 
+		return -1; 
+	}
+	/*
+	 * 尝试使用LIST命令
+	 */
+	if (ftp_data(f, options.passive) != NO_ERROR) {
+		log_printf(LOG_ERROR, "Open FTP data connection FAILED!(SERVER:%s)\n",
+			   	ftp_mesg(f)); 
+		return -1; 
+	}
+	ftp_command(f, "LIST %s", pfile); 
+	ftp_wait_reply(f); 
+	status = ftp_status(f)/100; 
+	if (status != 1) {
+		return -1; 
+	}
+	/*
+	 * 读取LIST数据并提取文件大小字段
+	 */
+	{
+		char *list = malloc(DEF_BUF + 1); 
+		size_t len = DEF_BUF; 
+		size_t total = 0; 
+		ssize_t rnt = 0; 
+		assert (list != NULL); 
+		while ((rnt = sock_read(f->data, list + total, len - total))) {
+			if (rnt + total >= len - 1) {
+				len += DEF_BUF; 
+				list = realloc(list, len + 1); 
+				assert (list != NULL); 
+			}
+			total += rnt; 
+	}
+
+		list[total] = '\0'; 
+		sock_close(f->data); 
+
+		ftp_wait_reply(f); 
+		status = ftp_status(f)/100; 
+		if (status != 2) {
+			free(list); 
+			log_printf(LOG_ERROR, "FTP reply unknown!(SERVER:%s)\n", ftp_mesg(f)); 
+			return -1; 
+		}
+		char *p = list + total; 
+		char *delim; 
+		if (p[-1] == '\n') {
+			delim = p[-2] == '\r' ? p - 2 : p - 1; 
+		}
+		p = strstr(list, delim); 
+		p = strstr(p + strlen(delim), delim); 
+		if (p) {
+			/* 有多行数据 */
+			free (list); 
+			log_printf(LOG_ERROR, "List file reply is multi line!\n"); 
+			return -1; 
+		}
+		p = list; 
+		if (*p == '-') {
+			/* 普通文件 直接获取文件大小字段*/
+			sscanf(list, "%*s %*d %*s %*s %lld %*s %*s %*s %*s", &size); 
+			return size; 
+
+		} else if (*p == 'l') {
+			/* 链接文件 */
+			p = strstr(list, "->"); 
+			if (!p) {
+				log_printf(LOG_ERROR, "GET orignal filename from link FAILED!"); 
+				free (list); 
+				return -1; 
+			}
+			p += 3; 
+			memset(delim, 0, strlen(delim)); 
+			free(pfile); 
+			pfile = strdup(p); 
+			max_redir--; 
+			goto LINK; 
+		} else {
+			free (list); 
+			log_printf(LOG_ERROR, "%s is NOT a file!\n", pfile); 
+			return -1; 
+		}
+	}
 }

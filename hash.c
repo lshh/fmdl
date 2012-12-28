@@ -104,7 +104,6 @@ bool hash_get_pair(hash_t *ht, const void *key, const void **k, const void **v)
 void *hash_get(hash_t *ht, const void *key)
 {
 	cell_t *c = find_cell(ht, key); 
-	if (c == NULL) return NULL; 
 	if(CELL_NOT_EXIST(c)) return NULL; 
 	return c->value; 
 }

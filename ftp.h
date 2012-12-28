@@ -65,9 +65,9 @@ int ftp_data(ftp_t *ftp, bool passive);
  */
 int ftp_port(ftp_t *f); 
 /*
- * 获取指定文件的大小
+ * 获取FILE文件的大小
  */
-uint64_t ftp_size(ftp_t *ftp, const char *file); 
+long long int ftp_size(ftp_t *f, const char *file, int max_redir); 
 /*
  * 答应最近一次的服务器响应
  */

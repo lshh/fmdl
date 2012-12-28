@@ -57,6 +57,7 @@ struct getaddrinfo_arg
 }; 
 static time_t addrlist_live_time(); 
 static void addrlist_destroy(addrlists_t *al); 
+
 addrlists_t *addrlist_new(const struct addrinfo *res)
 {
 	assert (res != NULL); 
