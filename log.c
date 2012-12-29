@@ -164,6 +164,7 @@ void dicard_all_stored()
 	}
 	memset(&stored_msg, 0, sizeof(stored_msg)); 
 }
+
 void log_printf(log_option option, char *fmt, ...)
 {
 	va_list args; 
@@ -190,6 +191,7 @@ void log_printf(log_option option, char *fmt, ...)
 		va_end(args); 
 	} while (!done); 
 }
+
 void log_puts(log_option option, char *msg)
 {
 	char *m; 
@@ -403,12 +405,10 @@ void print_to_cache(char *s, size_t len)
 	(p->cache)[p->used + len] = '\0'; 
 	p->used += len; 
 }
-void log_debug(log_option option, char *fmt, ...)
+
+void log_debug(log_option op, char *fmt, ...)
 {
-#if defined ENABLE_DEBUG
-	va_list args; 
-	va_start(args, fmt); 
-	log_printf(option, args); 
-	va_end(args); 
-#endif
+	/*
+	 * 暂不实现
+	 */
 }

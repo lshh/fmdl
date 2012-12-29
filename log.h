@@ -55,5 +55,5 @@ void redict_log_output_by_signal(int);
  * 志包括在缓冲区中的尚未输出的日志 */
 bool log_close(); 
 /* DEBUG 接口 */
-void log_debug(log_option, char*fmt, ...); 
+void log_debug(log_option op, char *fmt, ...); 
 #endif /* end of include guard: LOG_OYFB6UPY */

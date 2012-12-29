@@ -140,17 +140,18 @@ void push_head(struct http_msg *m, char *hd)
 	size_t length = m->length;  
 	size_t used = m->used;   
 	if (length == 0) {
-		m->heads = calloc(DEF_HD_CNT, sizeof(char *)); 
+		m->heads = calloc(DEF_HD_CNT + 1, sizeof(char *)); 
 		assert (m->heads != NULL); 
 		length = DEF_HD_CNT; 
 		m->length = length; 
+		m->used = 0; 
 	}
 	if (used == length - 1) {
 		size_t oldl = length; 
 		length += DEF_HD_CNT; 
 		m->length = length; 
-		m->heads = realloc(m->heads, length); 
-		memset(m->heads + oldl, 0, length - oldl + 1); 
+		m->heads = realloc(m->heads, sizeof(char*)*(length + 1)); 
+		memset(m->heads + used, 0, length - oldl + 1); 
 	}
 	char **p = m->heads; 
 	p[used] = hd; 
@@ -162,8 +163,10 @@ void discard_heads(struct http_msg *h)
 	char **p = GET_HEADS(*h); 
 	char **p1 = p; 
 	if (p) {
-		while (*p1) free (*p1++); 
-		memset(*p, 0, sizeof(char*)*(h->used)); 
+		while (*p1) {
+			free (*p1); 
+			*p1++ = NULL; 
+		}
 		h->used = 0; 
 	}
 }
@@ -203,7 +206,7 @@ int http_send_request(http_t *h)
 
 	all = all + 2 + strlen(GET_START(h->h_req)); 
 	for (; i < h->h_req.used; i++) 
-		all = strlen(GET_HEADS(h->h_req)[i]) + 2; 
+		all += strlen(GET_HEADS(h->h_req)[i]) + 2; 
 	all += 2; 	/* 结束符\r\n */
 
 	char *send = malloc (all + 1); 
@@ -309,7 +312,10 @@ int get_heads_data(http_t *h)
 		 * \r\n为2
 		 * \n为1
 		 */
-		if (read == 1 || read == 2) break; 
+		if (read == 1 || read == 2) {
+			free(buf); 
+			break; 
+		}
 
 		all += read; 
 		/* 多行首部 */
@@ -387,8 +393,11 @@ void free_msg_data(struct http_msg *m)
 
 	if (m->start) free(m->start); 
 	if (m->heads) {
-		char *p = *m->heads; 
-		while (p) free(p++); 
+		char **p = m->heads; 
+		while (*p) {
+			free(*p); 
+			p++; 
+		}
 		free(m->heads); 
 	}
 }
@@ -403,21 +412,22 @@ const char **http_req_heads(http_t *h)
 	return (const char **)GET_HEADS(h->h_req); 
 }
 
-const char **http_resp(http_t *h)
+const char **http_resp_heads(http_t *h)
 {
-	char **p = GET_HEADS(h->h_resp); 
-	if (p) {
+	if (h == NULL) return NULL; 
+	char **p1 = GET_HEADS(h->h_resp); 
+	if (p1) {
 		/* 响应的首部控制字符需要移除 */
-		char *hd = *p; 
-		while (hd) {
+		char **p = p1; 
+		while (*p) {
 			size_t cnt; 
-			cnt = strlen(hd); 
+			cnt = strlen(*p); 
 			cnt--; 
-			if (hd[cnt] == '\n') hd[cnt--] = '\0'; 
-			if (hd[cnt] == '\r') hd[cnt] = '\0'; 
-			hd++; 
+			if ((*p)[cnt] == '\n') (*p)[cnt--] = '\0'; 
+			if ((*p)[cnt] == '\r') (*p)[cnt] = '\0'; 
+			p++; 
 		}
 	}
-	return (const char **)p; 
+	return (const char **)p1; 
 }
 

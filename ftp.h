@@ -72,6 +72,5 @@ long long int ftp_size(ftp_t *f, const char *file, int max_redir);
  * 答应最近一次的服务器响应
  */
 char *ftp_mesg(ftp_t *ftp); 
-
 #endif /* end of include guard: FTP_75I7EGWM */
 
