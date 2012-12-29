@@ -333,8 +333,10 @@ int sock_read(socket_t *sock, char *buf, size_t len)
 		sock->status = SOCK_TIMEOUT; 
 		return -1; 
 	}
+AGAIN:
 	ret = read(sock->fd, buf, len); 
 	if (ret < 0) {
+		if (errno == EINTR) goto AGAIN; 
 		sock->status = SOCK_RD_ERROR; 
 		return -1; 
 	}
@@ -352,8 +354,10 @@ int sock_write(socket_t *sock, char *buf, size_t len)
 		sock->status = SOCK_TIMEOUT; 
 		return -1; 
 	}
+AGAIN:
 	ret = write(sock->fd, buf, len); 
 	if (ret < 0) {
+		if (errno == EINTR) goto AGAIN; 
 		sock->status = SOCK_WR_ERROR; 
 		return -1; 
 	}
@@ -371,7 +375,9 @@ int sock_peek(socket_t *sock, char *buf, size_t len)
 		sock->status = SOCK_TIMEOUT; 
 		return -1; 
 	}
+AGAIN:
 	ret = recv(sock->fd, buf, len, MSG_PEEK); 
+	if (ret < 0 && errno == EINTR) goto AGAIN; 
 	return ret; 
 }
 int fd_select(int fd, int event, uint32_t to)
