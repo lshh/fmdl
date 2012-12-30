@@ -47,11 +47,14 @@
 } while (0)
 
 static void push_head(struct http_msg *m, char *hd); 
+static bool delete_head_for_req(http_t *h, const char *hd); 
 static int get_start_data(http_t *h); 
 static int get_heads_data(http_t *h); 
+bool search_head(struct http_msg *m, const char *head, char **ret); 
 static char *string_lower(char *s, bool dup); 
 static void discard_heads(struct http_msg *h); 
 static void discard_start(struct http_msg *h); 
+static void add_head(struct http_msg *m, char *hd); 
 static int check_byte_to_read(socket_t *sock, const char *delim); 
 static void free_msg_data(struct http_msg *m); 
 /* 从HTTP响应中解析出服务器的响应码 */
@@ -65,8 +68,32 @@ http_t *http_new(const char *user, const char *pass)
 	http_t *h; 
 	h = calloc(1, sizeof(http_t)); 
 	assert(h != NULL); 
-	h->h_user = user == NULL ? NULL : strdup(user); 
-	h->h_pass = pass == NULL ? NULL : strdup(pass);
+
+	if (user == NULL) user = ""; 
+	if (pass == NULL) pass = ""; 
+
+	size_t l = strlen(user) + strlen(pass); 
+	char auth[MAX_STRING] = {0}; 
+	char base64_encode[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"abcdefghijklmnopqrstuvwxyz0123456789+/";
+
+	l = ((l + 1) << 3)/6 ; 
+	h->h_auth = calloc(l + 1, sizeof(char)); 
+	assert(h->h_auth != NULL); 
+
+	sprintf(auth, "%s:%s", user, pass); 
+	/* 对用户名和密码进行BASIC64编码 */
+	{
+		int i = 0; 
+		for (; auth[i*3]; i++) {
+			h->h_auth[i*4] = base64_encode[(auth[i*3]>>2)];
+			h->h_auth[i*4+1] = base64_encode[((auth[i*3]&3)<<4)|(auth[i*3+1]>>4)];
+			h->h_auth[i*4+2] = base64_encode[((auth[i*3+1]&15)<<2)|(auth[i*3+2]>>6)];
+			h->h_auth[i*4+3] = base64_encode[auth[i*3+2]&63];
+			if( auth[i*3+2] == 0 ) h->h_auth[i*4+3] = '=';
+			if( auth[i*3+1] == 0 ) h->h_auth[i*4+2] = '=';
+		}
+	}
 	return h; 
 }
 
@@ -93,12 +120,18 @@ char *string_lower(char *s, bool dup)
 	return p; 
 }
 
-bool resp_has_head(http_t *h, char *head)
+bool search_head(struct http_msg *m, const char *head, char **ret)
 {
-	assert (h != NULL && head != NULL); 
+	assert (m != NULL && head != NULL); 
 
-	char *hd = string_lower_dup(head); 
-	char **p = GET_HEADS(h->h_resp); 
+	char *hd = string_lower_dup((char *)head); 
+	char **p = GET_HEADS(*m); 
+
+	if (!p) {
+		if (ret) *ret = NULL; 
+		return false; 
+	}
+
 	while (*p) {
 		char *hd1 = *p++; 
 		if (strncasecmp(hd1, hd, strlen(hd)) == 0) {
@@ -106,11 +139,23 @@ bool resp_has_head(http_t *h, char *head)
 			 * 找到此首部
 			 */
 			free(hd); 
+			if (ret) *ret = hd1; 
 			return true; 
 		}
 	}
+
 	free(hd); 
+	if (ret) *ret = NULL; 
 	return false; 
+}
+
+bool resp_has_head(http_t *h, char *head, char **ret)
+{
+	assert (h != NULL && head != NULL); 
+	char *p; 
+	bool t = search_head(&h->h_resp, head, &p); 
+	if (ret) *ret = p ? strdup(p) : p; 
+	return t; 
 }
 
 int http_status(http_t *h)
@@ -124,13 +169,72 @@ bool  add_head_for_req(http_t *h, char *hd, ...)
 	assert (h != NULL && hd != NULL); 
 	
 	char *head = calloc(1, MAX_HEAD_LENGTH + 1); 
+	assert (head != NULL); 
+	char *p; 
+	char buf[128]; 
 	if (!head) return false; 
 	va_list arg; 
 	va_start(arg, hd); 
 	vsnprintf(head, MAX_HEAD_LENGTH, hd, arg); 
 	va_end(arg); 
+	size_t len = strlen(head); 
+	if (head[--len] == '\n') head[len] = '\0'; 
+	if (head[--len] == '\r') head[len] = '\0'; 
+	p = strchr(head, ':'); 
+	if (!p) return false; 
+	len = p - head; 
+	p = strncpy(buf, head, len); 
+	p[len] = '\0'; 
+
+	if (delete_head_for_req(h, (const char *)p)) {
+		add_head(&h->h_req, head); 
+		return true; 
+	}
+
 	push_head(&h->h_req, head); 
 	return true; 
+}
+
+void may_add_head_for_req(http_t *h, char *hd, ...)
+{
+	assert (h != NULL && hd != NULL); 
+	char buf[128]; 
+	size_t len; 
+	char *p = strchr(hd, ':'); 
+	if (!p) return ; 
+	len = p - hd; 
+	p = strncpy(buf, hd, len);
+	p[len] = '\0'; 
+	if (!search_head(&h->h_req, (const char *)p, NULL)) {
+		char *head = calloc(1, MAX_HEAD_LENGTH + 1); 
+		assert (head != NULL); 
+		va_list arg; 
+		va_start(arg, hd); 
+		vsnprintf(head, MAX_HEAD_LENGTH, hd, arg); 
+		va_end(arg); 
+		len = strlen(head); 
+		if (head[--len] == '\n') head[len] = '\0'; 
+		if (head[--len] == '\r') head[len] = '\0'; 
+		push_head(&h->h_req, head); 
+	}
+}
+
+void add_head(struct http_msg *m, char *hd)
+{
+	char **p = GET_HEADS(*m); 
+	size_t l = m->used; 
+	int i = 0; 
+	if (!p) {
+		push_head(m, hd); 
+		return ; 
+	}
+	for (; i < l; i++, p++) {
+		if (!*p) {
+			*p = hd; 
+			return; 
+		}
+	}
+	if (i == l) push_head(m, hd); 
 }
 
 void push_head(struct http_msg *m, char *hd) 
@@ -151,7 +255,7 @@ void push_head(struct http_msg *m, char *hd)
 		length += DEF_HD_CNT; 
 		m->length = length; 
 		m->heads = realloc(m->heads, sizeof(char*)*(length + 1)); 
-		memset(m->heads + used, 0, length - oldl + 1); 
+		memset(m->heads + used, 0, (length - oldl + 1)*(sizeof(char*))); 
 	}
 	char **p = m->heads; 
 	p[used] = hd; 
@@ -176,13 +280,12 @@ bool http_set_req(http_t *h, char *method, char *req)
 	assert (h != NULL); 
 	assert (method != NULL && req != NULL); 
 
-	char *type = "HTTP/1.1"; 
 	char *request = calloc(MAX_REQUEST_BUF + 1, sizeof(char)); 
 	if (!request) return false; 
 	if (GET_START(h->h_req)) free(GET_START(h->h_req)); 
 	GET_START(h->h_req) = request; 
 	snprintf(request, MAX_REQUEST_BUF, "%s %s %s", 
-			method, req, type); 
+			method, req, HTTP_VERSION); 
 	return true; 
 }
 
@@ -361,6 +464,10 @@ int check_byte_to_read(socket_t *sock, const char *delim)
 	char *p; 
 	ret = sock_peek(sock, buf, len); 
 	if (ret <= 0) return -1; 
+	/*
+	 * 注意：如果服务器发送的首部单行长度大于MAX_HEAD_LENGTH则
+	 * 程序处理结果可能将出现错误！
+	 */
 	p = strstr(buf, delim); 
 	if (!p) {
 		/* 服务器发送的数据不是以delim分割的 */
@@ -383,8 +490,6 @@ void http_close(http_t *h)
 	free_msg_data(&h->h_req); 
 	free_msg_data(&h->h_resp); 
 	sock_close(h->h_sock); 
-	if (h->h_user) free(h->h_user); 
-	if (h->h_pass) free(h->h_pass); 
 	free(h); 
 }
 void free_msg_data(struct http_msg *m)
@@ -431,3 +536,29 @@ const char **http_resp_heads(http_t *h)
 	return (const char **)p1; 
 }
 
+void print_http_heads(http_t *h, bool type)
+{
+	if (!h) return ; 
+	const char **p = type == true ? http_resp_heads(h) : http_req_heads(h); 
+	if (!p) return; 
+	while (*p)  log_printf(LOG_VERBOS, "%s\n", *p++); 
+}
+
+bool delete_head_for_req(http_t *h, const char *hd)
+{
+	char *p; 
+	if (search_head(&h->h_req, hd, &p)) {
+		/* 有HD首部 */
+		char **head = GET_HEADS(h->h_req); 
+		if (!head) return false; 
+		while (*head) {
+			if (*head == p) {
+				free(*head); 
+				*head = 0; 
+				return true; 
+			}
+			head++; 
+		}
+	}
+	return false; 
+}
