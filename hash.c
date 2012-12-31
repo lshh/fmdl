@@ -17,6 +17,7 @@
  */
 #include "hash.h"
 #include <stdlib.h>
+#include <ctype.h>
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -226,4 +227,59 @@ int string_nocase_cmp(const void *s1, const void *s2)
 	char *str1 = (char *)s1; 
 	char *str2 = (char*)s2; 
 	return strcasecmp(str1, str2); 
+}
+
+int string_cmp(const void *s1, const void *s2)
+{
+	return !strcmp((const char *)s1, (const char *)s2); 
+}
+uint32_t hash_string(const void *k) 
+{
+	assert(k != NULL); 
+	const char *p = k; 
+	uint32_t h = *p; 
+
+	if (h)
+		for (p += 1; *p != '\0'; p++)
+			h = (h << 5) - h + *p;
+
+	return h;
+}
+uint32_t hash_string_nocase(const void *key)
+{
+	const char *p = key;
+	unsigned int h = tolower (*p);
+
+	if (h)
+		for (p += 1; *p != '\0'; p++)
+			h = (h << 5) - h + tolower (*p);
+
+	return h;
+}
+
+hash_iterator_t *hash_iterator(hash_t *h) 
+{
+	assert (h != NULL); 
+
+	hash_iterator_t *ite = calloc(1, sizeof(hash_iterator_t)); 
+	assert (ite != NULL); 
+	ite->pos = (void*)h->cell; 
+	ite->end = (void*)h->cell + h->size; 
+	return ite; 
+}
+
+bool hash_iterator_next(hash_iterator_t *ite) 
+{
+	assert (ite != NULL); 
+	cell_t *c = ite->pos; 
+	cell_t *e = ite->end; 
+	for (; c < e; c++) {
+		if (CELL_EXIST(c)) {
+			ite->k = c->key; 
+			ite->v = c->value; 
+			ite->pos = c + 1; 
+			return true; 
+		}
+	}
+	return false;
 }

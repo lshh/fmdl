@@ -40,7 +40,10 @@ typedef struct hash_tb
 	uint32_t reset_size; 	/* 重新分配大小的阀值 */
 	uint8_t cur_offset; 
 } hash_t; 
-
+typedef struct _hash_iterator_t {
+	void *k, *v; 
+	cell_t *pos, *end; 
+} hash_iterator_t;
 /* ***********************************接口*************************************** */
 /*
  * 创建新的散列
@@ -55,5 +58,10 @@ typedef struct hash_tb
  bool hash_contains(hash_t *ht, const void *key); 
  bool hash_remove(hash_t *ht, const void *key); 
  void hash_clear(hash_t *ht); 
+ hash_iterator_t *hash_iterator(hash_t *h); 
+ bool hash_iterator_next(hash_iterator_t *ite); 
  int string_nocase_cmp(const void *s1, const void *s2); 
+ int string_cmp(const void *s1, const void *s2); 
+ uint32_t  hash_string(const void *k); 
+ uint32_t hash_string_nocase(const void *key); 
 #endif /* end of include guard: HASH_T0QUF7L5 */

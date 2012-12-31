@@ -35,7 +35,7 @@ static hash_t *dns_host_address_map;
 
 #define ENSURE_DNS_MAP_EXISTS do {\
 	if (dns_host_address_map == NULL) {\
-		dns_host_address_map = hash_new(0, NULL, string_nocase_cmp); \
+		dns_host_address_map = hash_new(0, hash_string_nocase, string_nocase_cmp); \
 		assert (dns_host_address_map != NULL); \
 	}\
 } while (0)

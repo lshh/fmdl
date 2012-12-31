@@ -41,6 +41,8 @@ typedef struct _http_t {
 	socket_t *h_sock; 				/* 网络连接 */
 	time_t h_tm; 					/* 此结构创建时间 */
 	char *h_auth; 					/* HTTP 用户名和密码经过BASIC64编码 */
+	char *h_host; 				/* 连接的远端主机 */
+	uint16_t h_port; 				/* 端口 */
 } http_t;
 /*
  * 创建一个HTTP_T结构
@@ -67,13 +69,15 @@ int http_status(http_t *h);
 /*
  * 将指定的首部数据添加到带发送的请求中, 如果该
  * 首部已被加入则会用当前加入的首部替换
+ * NOTE:首部数据的总长度如果大于MAX_HEAD_LENGTH
+ * 数据将会被截断
  */
-bool add_head_for_req(http_t *h, char *hd, ...); 
+bool add_head_for_req(http_t *h, char *hd, char *fmt, ...); 
 /*
  * 此接口与ADD_HEAD_FOR_REQ类似，但是如果该首部已
  * 经存在则不会进行替换！
  */
-void may_add_head_for_req(http_t *h, char *hd, ...); 
+void may_add_head_for_req(http_t *h, char *hd, char *fmt,  ...); 
 /*
  * 设置HTTP请求
  * 例如:

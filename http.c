@@ -19,7 +19,6 @@
 #include "net.h"
 #include "log.h"
 #include "error_code.h"
-#include "fmdl.h"
 
 #include <stdio.h>
 #include <strings.h>
@@ -104,6 +103,8 @@ bool http_connect(http_t *h, const char *host, uint16_t port)
 	h->h_sock = sock_open_host(host, port); 
 	if (h->h_sock == NULL) return false; 
 	h->h_tm = time(NULL); 
+	h->h_host = strdup(host); 
+	h->h_port = port; 
 	return true; 
 }
 
@@ -164,29 +165,22 @@ int http_status(http_t *h)
 	return h->h_status; 
 }
 
-bool  add_head_for_req(http_t *h, char *hd, ...)
+bool  add_head_for_req(http_t *h, char *hd, char *fmt, ...)
 {
-	assert (h != NULL && hd != NULL); 
+	assert (h != NULL && hd != NULL && fmt != NULL); 
 	
 	char *head = calloc(1, MAX_HEAD_LENGTH + 1); 
-	assert (head != NULL); 
-	char *p; 
-	char buf[128]; 
 	if (!head) return false; 
+	int wnt = sprintf(head, "%s: ", hd); 
 	va_list arg; 
-	va_start(arg, hd); 
-	vsnprintf(head, MAX_HEAD_LENGTH, hd, arg); 
+	va_start(arg, fmt); 
+	vsnprintf(head + wnt, MAX_HEAD_LENGTH - wnt, fmt, arg); 
 	va_end(arg); 
 	size_t len = strlen(head); 
 	if (head[--len] == '\n') head[len] = '\0'; 
 	if (head[--len] == '\r') head[len] = '\0'; 
-	p = strchr(head, ':'); 
-	if (!p) return false; 
-	len = p - head; 
-	p = strncpy(buf, head, len); 
-	p[len] = '\0'; 
 
-	if (delete_head_for_req(h, (const char *)p)) {
+	if (delete_head_for_req(h, (const char *)hd)) {
 		add_head(&h->h_req, head); 
 		return true; 
 	}
@@ -195,22 +189,17 @@ bool  add_head_for_req(http_t *h, char *hd, ...)
 	return true; 
 }
 
-void may_add_head_for_req(http_t *h, char *hd, ...)
+void may_add_head_for_req(http_t *h, char *hd, char *fmt, ...)
 {
-	assert (h != NULL && hd != NULL); 
-	char buf[128]; 
+	assert (h != NULL && hd != NULL && fmt != NULL); 
 	size_t len; 
-	char *p = strchr(hd, ':'); 
-	if (!p) return ; 
-	len = p - hd; 
-	p = strncpy(buf, hd, len);
-	p[len] = '\0'; 
-	if (!search_head(&h->h_req, (const char *)p, NULL)) {
+	if (!search_head(&h->h_req, (const char *)hd, NULL)) {
 		char *head = calloc(1, MAX_HEAD_LENGTH + 1); 
 		assert (head != NULL); 
+		int wnt = sprintf(head, "%s: ", hd); 
 		va_list arg; 
-		va_start(arg, hd); 
-		vsnprintf(head, MAX_HEAD_LENGTH, hd, arg); 
+		va_start(arg, fmt); 
+		vsnprintf(head + wnt, MAX_HEAD_LENGTH - wnt, fmt, arg); 
 		va_end(arg); 
 		len = strlen(head); 
 		if (head[--len] == '\n') head[len] = '\0'; 
@@ -342,6 +331,12 @@ int http_get_response(http_t *h)
 	assert (h != NULL && h->h_sock != NULL); 
 	int ret; 
 	size_t total = 0; 
+	/*
+	 * 首先丢弃上次响应的数据
+	 */
+	discard_start(&h->h_resp); 
+	discard_heads(&h->h_resp); 
+
 	ret = get_start_data(h); 
 	if (ret <= 0) return ret; 
 	total += ret; 
@@ -457,15 +452,15 @@ int check_byte_to_read(socket_t *sock, const char *delim)
 {
 	assert (sock != NULL); 
 	assert (delim != NULL); 
-	char *buf = malloc(MAX_HEAD_LENGTH + 1); 
-	size_t len = MAX_HEAD_LENGTH; 
+	char buf[MAX_STRING + 1]; 
+	size_t len = MAX_STRING; 
 	assert(buf != NULL); 
 	int ret = 0; 
 	char *p; 
 	ret = sock_peek(sock, buf, len); 
 	if (ret <= 0) return -1; 
 	/*
-	 * 注意：如果服务器发送的首部单行长度大于MAX_HEAD_LENGTH则
+	 * 注意：如果服务器发送的首部单行长度大于MAX_STRING则
 	 * 程序处理结果可能将出现错误！
 	 */
 	p = strstr(buf, delim); 
@@ -490,8 +485,10 @@ void http_close(http_t *h)
 	free_msg_data(&h->h_req); 
 	free_msg_data(&h->h_resp); 
 	sock_close(h->h_sock); 
+	if (h->h_host) free(h->h_host); 
 	free(h); 
 }
+
 void free_msg_data(struct http_msg *m)
 {
 	assert (m != NULL); 
