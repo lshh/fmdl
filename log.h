@@ -21,7 +21,9 @@
 
 #include <stdio.h>
 #include "error_code.h"
+
 typedef enum{false, true} bool; 
+
 typedef enum{
 	LOG_ERROR, 		/* 错误信息 */
 	LOG_WARNING, 	/* 警告信息 */
@@ -56,4 +58,6 @@ void redict_log_output_by_signal(int);
 bool log_close(); 
 /* DEBUG 接口 */
 void log_debug(log_option op, char *fmt, ...); 
+/* 返回输出接口的文件描述符 */
+int  log_interface(); 
 #endif /* end of include guard: LOG_OYFB6UPY */

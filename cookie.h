@@ -59,6 +59,10 @@ bool save_setcookie(const char *set_cookie);
  * 生成符合domain和path以及secflag条件的COOKIE首部
  */
 char *cookie_to_head(const char *domain, const char *path, bool secflag); 
+/* 将所有获得的COOKIE存入文件 */
 bool save_cookies_to_file(const char *file); 
+/*
+ * 从文件中加载COOKIE
+ */
 int load_cookies_from_file(const char *file); 
 #endif /* end of include guard: COOKIE_BYFI3LCC */

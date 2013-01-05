@@ -56,8 +56,8 @@ static struct msg_cache log_cache;
 static void *log_callback; 
 static void *cb_arg; 
 /* 重定向指示 
- * 0为尚未收到重定向命令
- * 1为收到通过信号传来的重定向命令
+ * false为尚未收到重定向命令
+ * true为收到通过信号传来的重定向命令
  */
 static bool redict_output; 
 struct log_stored_msg
@@ -171,6 +171,7 @@ void log_printf(log_option option, char *fmt, ...)
 	bool done; 
 	static bool is_cache = false; 
 	if (inhibit) return; 
+
 	if (enable_cache && is_cache == false) {
 		is_cache = true; 
 		log_cache.cache = malloc(MAX_CACHE_LENGTH + 1); 
@@ -178,12 +179,14 @@ void log_printf(log_option option, char *fmt, ...)
 		log_cache.length = MAX_CACHE_LENGTH; 
 		log_cache.used = 0; 
 	}
+
 	if (redict_output == true) {
 		redict_output = false; 
 		log_fflush(); 
 		default_ouput_by_signal(); 
 		puts_stored_msg(); 
 	} 
+
 	do {
 		va_start(args, fmt); 
 		done = write_to(option, fmt, args); 
@@ -264,6 +267,7 @@ void puts_stored_msg()
 	stored_msg.next_empty_mem = 0; 
 #undef OUT_STORE
 }
+
 bool write_to(log_option option, char *fmt, va_list args)
 {
 	static size_t size = 128; 
@@ -278,7 +282,7 @@ bool write_to(log_option option, char *fmt, va_list args)
 	}
 	if (num >= size) {
 		free(buff); 
-		size = num + 1; 
+		size = num + size; 
 		return false; 
 	}
 	size_t len = strlen(buff); 
@@ -315,6 +319,7 @@ bool write_to(log_option option, char *fmt, va_list args)
 	}
 	return true; 
 }
+
 void default_ouput_by_signal()
 {
 	char path[128]; 
@@ -356,6 +361,7 @@ EXIT:
 		stored_msg.next_empty_mem = 0; 
 	return ; 
 }
+
 void str_write(int fd, char *s, size_t len)
 {
 	assert(s != NULL); 
@@ -373,7 +379,7 @@ AGAIN:
 	if (wnt < 0) {
 		bool flag = true; 
 		if (errno == EINTR) goto AGAIN; 
-		/* 文件描述符可能失效或被意外关闭 */
+		/* 文件描述符可能被意外关闭 */
 		if (errno == EBADF) {
 			if (log_callback == NULL) {
 				log_fd = default_output_cb(NULL); 
@@ -392,6 +398,7 @@ AGAIN:
 		}
 	}
 }
+
 void print_to_cache(char *s, size_t len)
 {
 	assert(s != NULL); 
@@ -411,4 +418,9 @@ void log_debug(log_option op, char *fmt, ...)
 	/*
 	 * 暂不实现
 	 */
+}
+int log_interface()
+{
+	/* 返回日志输出的接口描述符 */
+	return log_fd; 
 }

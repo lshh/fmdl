@@ -170,11 +170,23 @@ bool  add_head_for_req(http_t *h, char *hd, char *fmt, ...)
 	assert (h != NULL && hd != NULL && fmt != NULL); 
 	
 	char *head = calloc(1, MAX_HEAD_LENGTH + 1); 
+	size_t l = MAX_HEAD_LENGTH; 
 	if (!head) return false; 
 	int wnt = sprintf(head, "%s: ", hd); 
 	va_list arg; 
 	va_start(arg, fmt); 
-	vsnprintf(head + wnt, MAX_HEAD_LENGTH - wnt, fmt, arg); 
+	while (1) {
+		int ret; 
+		ret = vsnprintf(head + wnt, l - wnt, fmt, arg); 
+		if (ret >= l - wnt) {
+			/* 数据被截断缓冲区太小*/
+			l += MAX_HEAD_LENGTH; 
+			head = realloc(head, l + 1); 
+			assert (head != NULL); 
+			continue; 
+		}
+		break; 
+	}
 	va_end(arg); 
 	size_t len = strlen(head); 
 	if (head[--len] == '\n') head[len] = '\0'; 
@@ -195,11 +207,23 @@ void may_add_head_for_req(http_t *h, char *hd, char *fmt, ...)
 	size_t len; 
 	if (!search_head(&h->h_req, (const char *)hd, NULL)) {
 		char *head = calloc(1, MAX_HEAD_LENGTH + 1); 
+		size_t l = MAX_HEAD_LENGTH; 
 		assert (head != NULL); 
 		int wnt = sprintf(head, "%s: ", hd); 
 		va_list arg; 
 		va_start(arg, fmt); 
-		vsnprintf(head + wnt, MAX_HEAD_LENGTH - wnt, fmt, arg); 
+		while (1) {
+			int ret; 
+			ret = vsnprintf(head + wnt, l - wnt, fmt, arg); 
+			if (ret >= l - wnt) {
+				/* 数据被截断缓冲区太小*/
+				l += MAX_HEAD_LENGTH; 
+				head = realloc(head, l + 1); 
+				assert (head != NULL); 
+				continue; 
+			}
+			break; 
+		}
 		va_end(arg); 
 		len = strlen(head); 
 		if (head[--len] == '\n') head[len] = '\0'; 
@@ -270,17 +294,30 @@ bool http_set_req(http_t *h, char *method, char *req)
 	assert (method != NULL && req != NULL); 
 
 	char *request = calloc(MAX_REQUEST_BUF + 1, sizeof(char)); 
+	size_t cnt = MAX_REQUEST_BUF; 
 	if (!request) return false; 
 	if (GET_START(h->h_req)) free(GET_START(h->h_req)); 
 	GET_START(h->h_req) = request; 
-	snprintf(request, MAX_REQUEST_BUF, "%s %s %s", 
+	while (1) {
+		int ret; 
+		ret = snprintf(request, cnt, "%s %s %s", 
 			method, req, HTTP_VERSION); 
+		if (ret >= cnt) {
+			cnt += MAX_REQUEST_BUF; 
+			request = realloc(request, cnt + 1); 
+			assert (request != NULL); 
+			continue; 
+		}
+		break; 
+	}
 	return true; 
 }
 
 int http_send_request(http_t *h)
 {
 	assert (h != NULL); 
+	static char *send = NULL; 
+	static size_t sndlen = 0; 
 	/*
 	 * 防止未调用HTTP_CONNECT
 	 */
@@ -301,9 +338,13 @@ int http_send_request(http_t *h)
 		all += strlen(GET_HEADS(h->h_req)[i]) + 2; 
 	all += 2; 	/* 结束符\r\n */
 
-	char *send = malloc (all + 1); 
-	size_t snd = 0; 
+	if (sndlen < all) {
+		send = send ? realloc(send, all + 1) : malloc(all + 1); 
+		assert (send != NULL); 
+		sndlen = all; 
+	}
 	int ret; 
+	size_t snd; 
 	assert(send != NULL); 
 	snd = sprintf(send, "%s\r\n", GET_START(h->h_req)); 
 	for (i = 0; i < h->h_req.used; i++) {
@@ -443,6 +484,9 @@ int get_heads_data(http_t *h)
 			mutil = NULL; 
 			flag = false; 
 		}
+		size_t bl = strlen(buf); 
+		if (buf[bl - 1] == '\n') buf[bl - 1] = '\0'; 
+		if (buf[bl - 2] == '\r') buf[bl - 2] = '\0'; 
 		push_head(&h->h_resp, buf); 
 	}
 	return all; 

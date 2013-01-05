@@ -3,7 +3,7 @@
  *
  *       Filename:  cookie.c
  *
- *    Description:  处理COOKIE的接口实现
+ *    Description:  处理COOKIE的接口实现, 此接口未来将重新实现
  *
  *        Version:  1.0
  *        Created:  2012年12月31日 13时00分43秒
@@ -34,9 +34,10 @@
 #define GET_WORD(s, b, e) do {\
 	SKIP_SPACE(s); \
 	b = s; \
-	while (!isspace(s++)); \
+	while (*s && !isspace(*s)) s++; \
 	e = s; \
 } while (0)
+
 #define COOKIE_HASH_GET(k)  hash_get(cookie_jar->cookie_hash, (const char *)k)
 #define COOKIE_HASH_PUT(k, v)  (cookie_t *)hash_put(cookie_jar->cookie_hash, (const void *)k, (void*)v)
 static cookie_jar_t *cookie_jar; 
@@ -48,6 +49,9 @@ static void free_cookie(cookie_t *c);
 static time_t GMT2time(const char *s); 
 static void delete_cookie_chain(cookie_t *c); 
 static char *find_cookies_by_abs_domain(char *d, size_t l, char *p, bool secflag); 
+static size_t save_to_print_cache(cookie_t *c, char *buf); 
+static size_t save_cookie_need_bytes(const cookie_t *c); 
+static char *str_chr(const char *s, char *b, char c); 
 
 /*
  * 查找指定的cookie如果找到返回此cookie同是prec设置为
@@ -91,8 +95,7 @@ cookie_t *cookie_from_setcookie(const char *set_cookie)
 		if (*p++ == '=') break; \
 	}\
 	if (p == wd_e) goto BAD_COOKIE; \
-	if (n != NULL) *(n) = strndup(wd_b, p - wd_b); \
-	p++; \
+	if (n != NULL) *(n) = strndup(wd_b, p - wd_b - 1); \
 	*(v) = strndup(p, wd_e - p); \
 } while (0)
 
@@ -117,14 +120,21 @@ cookie_t *cookie_from_setcookie(const char *set_cookie)
 	while ((sc = strchr(sc, ';'))) {
 		char **cmd = NULL; 
 		sc++; 
-		GET_WORD(sc, wd_b, wd_e); 
-		if (strncasecmp("expires", wd_b, wd_e - wd_b) == 0) {
+		SKIP_SPACE(sc); 
+		wd_b = sc; 
+		char *p= strchr(sc, '='); 
+		if (!wd_e) goto BAD_COOKIE; 
+		if (strncasecmp("expires", wd_b, p - wd_b) == 0) {
+			GET_WORD(sc, wd_b, wd_e); 
 			GET_VAL(cmd, &expires); 
-		} else if (strncasecmp("path", wd_b, wd_e - wd_b) == 0) {
+		} else if (strncasecmp("path", wd_b, p - wd_b) == 0) {
+			GET_WORD(sc, wd_b, wd_e); 
 			GET_VAL(cmd, &path); 
-		} else if (strncasecmp("domain", wd_b, wd_e - wd_b) == 0) {
+		} else if (strncasecmp("domain", wd_b, p - wd_b) == 0) {
+			GET_WORD(sc, wd_b, wd_e); 
 			GET_VAL(cmd, &domain); 
-		} else if (strncasecmp("secure", wd_b, wd_e - wd_b) == 0) {
+		} else if (strncasecmp("secure", wd_b, p - wd_b) == 0) {
+			GET_WORD(sc, wd_b, wd_e); 
 			GET_VAL(cmd, &secure); 
 		} else {
 			/*
@@ -137,13 +147,15 @@ cookie_t *cookie_from_setcookie(const char *set_cookie)
 	 */
 	cookie_t *n = calloc(1, sizeof(cookie_t)); 
 	if (!n) goto BAD_COOKIE; 
-	n->domain = domain; 
-	n->path = path; 
+	n->domain = domain == NULL ? "" : domain; 
+	n->path = path == NULL ? "/" : path; 
 	n->name = name; 
-	n->value = value; 
+	n->value = value == NULL ? "" : value; 
+	if (!secure) n->secure = false; 
+	else
 	n->secure = strcasecmp(secure, "true") == 0 ? true : false; 
 	n->session = expires == NULL ? true : false; 
-	n->expires = expires == NULL ? GMT2time(expires) : 0; 
+	n->expires = expires != NULL ? GMT2time(expires) : 0; 
 	return n; 
 BAD_COOKIE:
 	if (name) free(name); 
@@ -262,7 +274,7 @@ bool save_setcookie(const char *set_cookie)
 	if (!fn1) {
 		/* 不存在和c->name相同的COOKIE, 在链表头插入新的COOKIE */
 		cookie_jar->cookie_count++; 
-		c->next = fn1; 
+		c->next = fn; 
 		goto RET; 
 	} 
 	if (!pre) {
@@ -280,13 +292,15 @@ RET:
 
 char *cookie_to_head(const char *domain, const char *path, bool secflag)
 {
-#define COOKIE_STIRNG_CPY do {\
+#define COOKIE_STRING_CPY do {\
 	if (cookie_tmp) {\
 		if (strlen(cookie_tmp) > c_len) {\
 			c_len += MAX_STRING; \
 			cookie = realloc(cookie, c_len + 1); \
 		}\
 		len += sprintf(cookie + len, " %s", cookie_tmp); \
+		char *p = strchr(cookie, ';'); \
+		if (p) *p = ' '; \
 		free(cookie_tmp);\
 	}\
 }while (0)
@@ -302,8 +316,7 @@ char *cookie_to_head(const char *domain, const char *path, bool secflag)
 		".int", ".biz", ".info", ".name", ".museum", ".coop", 
 		".aero", ".pro"
 	};
-	w_b = w_e; 
-	w_b = strchr(w_b, '.'); 
+	w_b = strrchr(domain, '.'); 
 	if (!w_b || w_b == domain) {
 		/*
 		 * 错误的域名或者如.com .edu等需要两个或三个'.'的域名
@@ -315,15 +328,15 @@ char *cookie_to_head(const char *domain, const char *path, bool secflag)
 	len = sprintf(cookie, "Cookie: "); 
 	c_len -= len; 
 	assert(cookie != NULL); 
-	w_b -= 2; 
+	w_b -= 1; 
 	dot++; 
-	while ((w_b = strrchr(w_b, '.'))) {
+	while ((w_b = str_chr(domain, w_b, '.'))) {
 		/*
 		 * www.foo.bar.com
 		 * 			   ^
 		 */
 		dot++; 
-		if (dot == 2  && (w_b == domain || !strrchr(w_b - 1, '.'))) {
+		if (dot == 2  && (w_b == domain || !str_chr(domain, w_b - 1, '.'))) {
 			/*
 			 * 查看只有两个'.'的域名是否符合要求
 			 */
@@ -344,7 +357,7 @@ char *cookie_to_head(const char *domain, const char *path, bool secflag)
 			break; 
 		}
 		cookie_tmp = find_cookies_by_abs_domain(w_b, w_e - w_b, (char *)path, secflag); 
-		COOKIE_STIRNG_CPY; 
+		COOKIE_STRING_CPY; 
 		if (w_b == domain) break; 
 		w_b--; 
 	}
@@ -352,16 +365,149 @@ char *cookie_to_head(const char *domain, const char *path, bool secflag)
 		cookie_tmp = find_cookies_by_abs_domain((char *)domain, 
 				strlen(domain), (char *)path, secflag); 
 	}
-	COOKIE_STIRNG_CPY; 
+	COOKIE_STRING_CPY; 
 	return cookie; 
 }
 
 char *find_cookies_by_abs_domain(char *d, size_t l, char *p, bool secflag)
 {
 	assert(d != NULL && p != NULL && l > 0); 
-	cookie_t *c = (cookie_t *)COOKIE_HASH_GET(d); 
+
+	char domain[256] = {0}; 
+	char *m = NULL; 
+	size_t wl = 0; 
+	strncpy(domain, d, l);
+
+	cookie_t *c = (cookie_t *)COOKIE_HASH_GET(domain); 
 	if (!c) return NULL; 
 	/*
 	 * 找到符合此域的COOKIE
 	 */
+	size_t len = strlen(p); 
+
+	{
+		char *pt = strchr(p, '/'); 
+		if (!pt) return NULL; 
+		
+		while (c) {
+			size_t l = strlen(c->path); 
+			if (l > len) {
+				/* 处理PATH结尾字符为/但存储的COOKIE
+				 * 结尾不为/ 
+				 */
+				if ((c->path)[l - 1] != '/')
+					/* 不匹配的COOKIE */
+					goto next; 
+				else l--; 
+			}
+			/*
+			 * 查看COOKIE是否过期
+			 */
+			if (c->expires) {
+				if (c->expires < time(NULL))
+					goto next; 
+			}
+
+			if (strncasecmp(c->path, p, l) == 0) {
+				/*
+				 * 查看SECURE是否符合条件, M分配内存需要改进
+				 */
+				if (!m) m = malloc(MAX_STRING + 1); 
+				if (!secflag && c->secure) goto next; 
+				/* 符合PATH条件的COOKIE */
+				wl += sprintf(m + wl, "; %s=%s ", c->name, c->value); 
+			}
+next:
+			c = c->next; 
+		}
+	}
+	return m; 
+}
+
+bool save_cookies_to_file(const char *file)
+{
+	assert (file != NULL); 
+	FILE *fp = fopen(file, "w+"); 
+	if (!fp) return false; 
+
+	if (!cookie_jar) return false; 
+	char buf[MAX_STRING + 1]; 
+	size_t wl = sprintf(buf, 
+			"#fmdl/1.0 save cookie\n" 
+			"#You'd better not to change it\n\n"
+			); 
+
+	fwrite(buf, 1, wl, fp); 
+	wl = 0; 
+	hash_iterator_t *ite = hash_iterator(cookie_jar->cookie_hash); 
+	while (hash_iterator_next(ite)) {
+		cookie_t *c = (cookie_t *)(ite->v); 
+		while (c) {
+			/* 会话COOKIE不保存 */
+			if (c->session) goto next; 
+			/* 计算存储一行COOKIE的所需长度 */
+			size_t l = 0; 
+			l +=save_cookie_need_bytes(c); 
+			if (l + wl > MAX_STRING) {
+				/* l的长度应该是不会大于MAX_STRING的 */
+				fwrite(buf, 1, wl, fp); 
+				wl = 0; 
+			}
+			/*
+			 * 存入缓冲区
+			 */
+			wl += save_to_print_cache(c, buf + wl); 
+next:
+			c = c->next; 
+		}
+	}
+	return true; 
+}
+
+size_t save_cookie_need_bytes(const cookie_t *c)
+{
+	assert (c != NULL); 
+	size_t l = 0; 
+	size_t bit = 1; 
+	time_t exp = c->expires; 
+	l += strlen(c->domain); 
+	l += strlen(c->path); 
+	l += strlen(c->value); 
+	l += *c->domain == '.' ? strlen("TRUE") : strlen("FALSE"); 
+	while ((exp /= 10)) bit++; 
+	l += bit; 
+	l += c->secure ? strlen("TRUE") : strlen("FALSE"); 
+	l += 6; /* 需要6个TAB来分割 */
+	return l; 
+}
+
+size_t save_to_print_cache(cookie_t *c, char *buf)
+{
+	assert (!c && !buf); 
+	/*
+	 * 将COOKIE_T存储的COOKIE数据转换为字符串
+	 */
+	size_t pn; 
+	pn = sprintf(buf, "%s\t", c->domain); 
+	pn += sprintf(buf + pn, "%s\t", 
+			*c->domain == '.' ? "TRUE" : "FALSE"); 
+	pn += sprintf(buf + pn, "%s\t", c->path); 
+	pn += sprintf(buf + pn, "%s\t", c->secure ? "TRUE" : "FALSE"); 
+	pn += sprintf(buf + pn, "%ld\t", c->expires); 
+	pn += sprintf(buf + pn, "%s\t", c->name); 
+	pn += sprintf(buf + pn, "%s\n", c->value); 
+	return pn; 
+}
+char *str_chr(const char *s, char *b, char c)
+{
+	assert (s != NULL); 
+	char *p = b; 
+	while (p != s && *p) {
+		if (*p == c) break; 
+		p--; 
+	}
+	if (!*b) return NULL; 
+	if (p == s && *p == c) return p; 
+	else if (p == s && *p != c) return NULL; 
+	return p; 
 }

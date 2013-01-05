@@ -195,8 +195,10 @@ cell_t *find_cell(hash_t *ht, const void *key)
 	cell_t *end = ht->cell + ht->size; 
 	if (CELL_NOT_EXIST(pos)) return pos; 
 	test_function_t test = ht->test_fun; 
-	for (; pos < end; pos++) 
+	for (; pos < end; pos++) {
+		if (!pos->key) continue; 
 		if (test(pos->key, key)) break; 
+	}
 	return pos; 
 }
 uint32_t prime_size(uint32_t size, uint8_t *prime_offset) 
@@ -226,7 +228,7 @@ int string_nocase_cmp(const void *s1, const void *s2)
 	assert(s1 != NULL && s2 != NULL); 
 	char *str1 = (char *)s1; 
 	char *str2 = (char*)s2; 
-	return strcasecmp(str1, str2); 
+	return !strcasecmp(str1, str2); 
 }
 
 int string_cmp(const void *s1, const void *s2)

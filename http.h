@@ -69,8 +69,6 @@ int http_status(http_t *h);
 /*
  * 将指定的首部数据添加到带发送的请求中, 如果该
  * 首部已被加入则会用当前加入的首部替换
- * NOTE:首部数据的总长度如果大于MAX_HEAD_LENGTH
- * 数据将会被截断
  */
 bool add_head_for_req(http_t *h, char *hd, char *fmt, ...); 
 /*

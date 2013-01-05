@@ -37,6 +37,7 @@ static int ftp_pasv(ftp_t *f);
 static int ftp_epsv(ftp_t *f); 
 static int ftp_data_socket(ftp_t *f, sockaddr_t *addr); 
 static int ftp_accept(ftp_t *f); 
+
 ftp_t *ftp_new(const char *user, const char *passwd)
 {
 	ftp_t *new = calloc(1, sizeof(ftp_t)); 

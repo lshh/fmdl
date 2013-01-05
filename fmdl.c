@@ -109,6 +109,7 @@ int main(int argc,  char *argv[])
 		{"exclude-dir", 1, NULL, 0}, 
 		{NULL, 0, NULL, 0}
 	}; 
+
 	int c; 
 	int index = 0; 
 	int nurls; 
